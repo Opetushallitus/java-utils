@@ -9,7 +9,7 @@
         <relativePath>..</relativePath>
     </parent>
     <artifactId>java-cas-spring-security</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0_BUG-773-SNAPSHOT</version>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
