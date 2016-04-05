@@ -23,14 +23,13 @@ public class SavedGetRequestAwareAuthenticationSuccessHandler extends SavedReque
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws ServletException, IOException {
-        // Do redirection to original URL after succesfull auhtentication
-        super.onAuthenticationSuccess(request, response, authentication);
+        // Do not redirect and replay original POST or PUT requests only gets
         SavedRequest savedRequest = requestCache.getRequest(request, response);
         if (savedRequest != null && !"GET".equals(savedRequest.getMethod())) {
-            // Do not try to replay original POST or PUT request after redirect
-            // because request body (and so also form parameters) went missing (see BUG-773)
             requestCache.removeRequest(request, response);
         }
+        // Do redirection to original GET or configured URL after succesfull authentication
+        super.onAuthenticationSuccess(request, response, authentication);
     }
 
     @Override
