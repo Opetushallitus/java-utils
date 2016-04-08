@@ -12,6 +12,8 @@
         <module>tcp-utils</module>
         <module>jetty-test-utils</module>
         <module>jersey-utils</module>
+        <module>healthcheck</module>
+        <module>healthcheck-spring</module>
         <module>java-cas</module>
         <module>java-cas-cxf</module>
         <module>java-cas-spring-security</module>
