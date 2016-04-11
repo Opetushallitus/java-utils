@@ -13,23 +13,9 @@
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
-            <groupId>org.jasig.cas.client</groupId>
-            <artifactId>cas-client-core</artifactId>
-            <version>3.1.12</version>
-            <exclusions>
-                <exclusion>
-                  <groupId>commons-logging</groupId>
-                  <artifactId>commons-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.opensaml</groupId>
-                    <artifactId>opensaml</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>fi.vm.sade.java-utils</groupId>
+            <artifactId>java-cas-spring-security</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.apache.cxf</groupId>
@@ -37,31 +23,14 @@
             <version>3.0.0</version>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-cas</artifactId>
-            <version>3.2.4.RELEASE</version>
-            <exclusions>
-                <exclusion>
-                  <groupId>org.jasig.cas.client</groupId>
-                  <artifactId>cas-client-core</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-frontend-jaxws</artifactId>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient-cache</artifactId>
-            <version>4.2.5</version>
-        </dependency>
-        <dependency>
-            <groupId>net.sf.ehcache</groupId>
-            <artifactId>ehcache-core</artifactId>
-            <version>2.5.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>16.0.1</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -75,6 +44,25 @@
         </dependency>
         <!-- test scope -->
         <dependency>
+            <groupId>fi.vm.sade.java-utils</groupId>
+            <artifactId>java-cas-spring-security</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>fi.vm.sade.java-utils</groupId>
+            <artifactId>jetty-test-utils</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>asm</groupId>
+                    <artifactId>asm</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.12</version>
@@ -84,12 +72,6 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.5</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>fi.vm.sade.java-utils</groupId>
-            <artifactId>jetty-test-utils</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
