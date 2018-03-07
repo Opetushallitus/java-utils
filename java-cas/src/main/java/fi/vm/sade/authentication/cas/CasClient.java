@@ -43,7 +43,14 @@ public final class CasClient {
      * get cas service ticket, throws runtime exception if fails
      */
     public static String getTicket(String server, final String username, final String password, String service, boolean addSuffix) {
+        if (addSuffix) {
+            return getTicket(server, username, password, service, SERVICE_URL_SUFFIX);
+        } else {
+            return getTicket(server, username, password, service, "");
+        }
+    }
 
+    public static String getTicket(String server, final String username, final String password, String service, String serviceUrlSuffix) {
         logger.debug("getTicket for server:{}, username:{}, service::{} ", new Object[]{server, username, service});
 
         notNull(server, "server must not be null");
@@ -52,8 +59,8 @@ public final class CasClient {
         notNull(service, "service must not be null");
 
         server = checkUrl(server, CAS_URL_SUFFIX);
-        if (addSuffix) {
-            service = checkUrl(service, SERVICE_URL_SUFFIX);
+        if (StringUtils.isNotEmpty(serviceUrlSuffix)) {
+            service = checkUrl(service, serviceUrlSuffix);
         }
 
         try (OphHttpClient client = new OphHttpClient(ApacheOphHttpClient.createCustomBuilder().
