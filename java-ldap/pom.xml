@@ -11,7 +11,7 @@
   <version>0.1.1-SNAPSHOT</version>
   <packaging>jar</packaging>
   <properties>
-    <spring.security.version>4.2.11.RELEASE</spring.security.version>
+    <spring.security.version>4.2.12.RELEASE</spring.security.version>
     <spring.version>5.1.5.RELEASE</spring.version>
   </properties>
   <dependencyManagement>
