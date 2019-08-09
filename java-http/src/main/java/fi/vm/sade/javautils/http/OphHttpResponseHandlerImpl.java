@@ -1,10 +1,14 @@
 package fi.vm.sade.javautils.http;
 
 import fi.vm.sade.javautils.http.exceptions.UnhandledHttpStatusCodeException;
+
+import org.apache.http.ParseException;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.Set;
@@ -79,13 +83,13 @@ public class OphHttpResponseHandlerImpl<T> implements OphHttpResponseHandler<T> 
     }
 
     private String asTextAndClose() {
-        try (InputStream inputStream = this.response.getEntity().getContent()) {
-            return OphHttpResponseImpl.toString(inputStream);
+
+        try {
+            return EntityUtils.toString(this.response.getEntity(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RuntimeException(e);
-        } finally {
-            this.close();
         }
+
     }
 
     private void close() {
@@ -95,6 +99,5 @@ public class OphHttpResponseHandlerImpl<T> implements OphHttpResponseHandler<T> 
             throw new RuntimeException(ioe);
         }
     }
-
 
 }
