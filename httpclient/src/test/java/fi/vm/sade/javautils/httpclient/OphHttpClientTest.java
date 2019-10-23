@@ -198,7 +198,7 @@ public class OphHttpClientTest {
                 .withHeader("Content-Type", TEXT)
                 .withBody("NOT OK!")
         );
-        assertEquals(new Integer(404), client.get("local.test")
+        assertEquals(Integer.valueOf(404), client.get("local.test")
                 .skipResponseAssertions().accept(JSON)
                 .execute(OphHttpResponse::getStatusCode));
     }
