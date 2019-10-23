@@ -1,8 +1,22 @@
 package fi.vm.sade.javautils.httpclient;
 
+import static fi.vm.sade.javautils.httpclient.OphHttpClient.Header.ACCEPT;
+import static fi.vm.sade.javautils.httpclient.OphHttpClient.JSON;
+import static fi.vm.sade.javautils.httpclient.OphHttpClient.TEXT;
+import static fi.vm.sade.javautils.httpclient.OphHttpClient.UTF8;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
+
 import fi.vm.sade.javautils.httpclient.apache.ApacheOphHttpClient;
 import fi.vm.sade.properties.OphProperties;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.mockserver.client.server.MockServerClient;
 import org.mockserver.junit.MockServerRule;
 
@@ -11,12 +25,6 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static fi.vm.sade.javautils.httpclient.OphHttpClient.*;
-import static fi.vm.sade.javautils.httpclient.OphHttpClient.Header.ACCEPT;
-import static org.junit.Assert.assertEquals;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 public class OphHttpClientTest {
 
@@ -320,7 +328,7 @@ public class OphHttpClientTest {
                     .execute(responseAsText);
             throw new RuntimeException("For some reason class cast exception was not thrown!");
         } catch (Exception e) {
-            assertEquals(ClassCastException.class, e.getClass());
+            assertThat(e, is(instanceOf(ClassCastException.class)));
         }
 
         // onError can throw exception
@@ -332,7 +340,7 @@ public class OphHttpClientTest {
             throw new RuntimeException("For some reason there was no exception");
         } catch (Exception e) {
             assertEquals("POW!", arr[0]);
-            assertEquals(RuntimeException.class, e.getClass());
+            assertThat(e, is(instanceOf(RuntimeException.class)));
             assertEquals("Unexpected response status: 404 Expected: any 2xx code Url: http://localhost:"+mockServerRule.getPort()+"/test", e.getMessage());
         }
 
