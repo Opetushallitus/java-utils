@@ -33,7 +33,7 @@ public class OphHttpClientTest {
 
     OphProperties properties = new OphProperties();
     private OphHttpClient client;
-    private OphHttpResponseHandler<String> responseAsText = response -> response.asText();
+    private OphHttpResponseHandler<String> responseAsText = OphHttpResponse::asText;
     OphHttpClient clientPlainUrls;
 
     @Before
@@ -200,7 +200,7 @@ public class OphHttpClientTest {
         );
         assertEquals(new Integer(404), client.get("local.test")
                 .skipResponseAssertions().accept(JSON)
-                .execute(response -> response.getStatusCode()));
+                .execute(OphHttpResponse::getStatusCode));
     }
 
     @Test
@@ -217,11 +217,8 @@ public class OphHttpClientTest {
 
         // handler exception
         try {
-            client.get("local.test").retryOnError(2,1).execute(new OphHttpResponseHandler<Void>() {
-                @Override
-                public Void handleResponse(OphHttpResponse response) throws IOException {
-                    throw new RuntimeException("Thrown for testing");
-                }
+            client.get("local.test").retryOnError(2,1).execute((OphHttpResponseHandler<Void>) response -> {
+                throw new RuntimeException("Thrown for testing");
             });
             throw new RuntimeException("should not get here");
         } catch (RuntimeException retryException) {
