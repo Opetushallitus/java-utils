@@ -347,7 +347,8 @@ public class OphHttpClientTest {
             assertEquals("Exception: Unexpected response status: 404 Expected: any 2xx code Url: http://localhost:"+mockServerRule.getPort()+"/test",
                     client.get("local.test")
                             .onError((requestParameters, response, e) -> arr[0]="POW!")
-                            .handleManually());
+                            .handleManually()
+                            .asText());
             throw new RuntimeException("For some reason there was no exception");
         } catch (IOException e) {
             throw new RuntimeException("There should have not been an IOException");
