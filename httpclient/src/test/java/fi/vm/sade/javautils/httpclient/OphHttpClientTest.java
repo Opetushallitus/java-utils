@@ -31,10 +31,10 @@ public class OphHttpClientTest {
     @Rule
     public MockServerRule mockServerRule = new MockServerRule(this);
 
-    OphProperties properties = new OphProperties();
+    private OphProperties properties = new OphProperties();
     private OphHttpClient client;
     private OphHttpResponseHandler<String> responseAsText = OphHttpResponse::asText;
-    OphHttpClient clientPlainUrls;
+    private OphHttpClient clientPlainUrls;
 
     @Before
     public void setUp() throws Exception {
