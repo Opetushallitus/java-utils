@@ -10,6 +10,9 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 public class CasSession {
+
+    private static final String CSRF_VALUE = "CSRF";
+
     private final HttpClient client;
     private final Duration requestTimeout;
     private final String callerId;
@@ -60,6 +63,8 @@ public class CasSession {
                             )))
                             .header("Content-Type", "application/x-www-form-urlencoded")
                             .header("Caller-Id", this.callerId)
+                            .header("CSRF", CSRF_VALUE)
+                            .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                             .timeout(this.requestTimeout)
                             .build();
                     this.ticketGrantingTicket = this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString(Charset.forName("UTF-8")))
@@ -95,6 +100,8 @@ public class CasSession {
                 )))
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Caller-Id", this.callerId)
+                .header("CSRF", CSRF_VALUE)
+                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                 .timeout(this.requestTimeout)
                 .build();
         return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString(Charset.forName("UTF-8")))

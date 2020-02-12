@@ -28,4 +28,4 @@ deploy:
   script: "mvn deploy -DskipTests --settings ci-tools/common/maven-settings.xml"
   skip_cleanup: true
   on:
-    branch: master
+    branch: SEC-94__koostepalvelun-cas-kutsusta-puuttuu-csrf-cookie
