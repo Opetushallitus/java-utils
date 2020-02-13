@@ -4,10 +4,10 @@
   <parent>
     <groupId>fi.vm.sade.java-utils</groupId>
     <artifactId>java-utils</artifactId>
-    <version>0.3.1-SEC-94-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
   </parent>
   <artifactId>java-cas</artifactId>
-  <version>0.6.1-SNAPSHOT</version>
+  <version>0.6.1-SEC-94-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <properties>
