@@ -10,6 +10,9 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 public class ApplicationSession {
+
+    private static final String CSRF_VALUE = "CSRF";
+
     private final HttpClient client;
     private final CookieManager cookieManager;
     private final String callerId;
@@ -59,6 +62,8 @@ public class ApplicationSession {
         HttpRequest request = HttpRequest.newBuilder(serviceTicket.getLoginUrl())
                 .GET()
                 .header("Caller-Id", this.callerId)
+                .header("CSRF", CSRF_VALUE)
+                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                 .timeout(this.authenticationTimeout)
                 .build();
         return this.client.sendAsync(request, HttpResponse.BodyHandlers.discarding())
