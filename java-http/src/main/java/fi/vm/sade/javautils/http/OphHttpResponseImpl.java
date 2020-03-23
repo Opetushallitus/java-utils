@@ -1,13 +1,9 @@
 package fi.vm.sade.javautils.http;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Set;
+
+import org.apache.http.client.methods.CloseableHttpResponse;
 
 public class OphHttpResponseImpl<T> implements OphHttpResponse<T> {
 
@@ -33,19 +29,6 @@ public class OphHttpResponseImpl<T> implements OphHttpResponse<T> {
     @Override
     public OphHttpResponseHandler<T> expectedStatus(int... statusArray) {
         return new OphHttpResponseHandlerImpl<>(this.response, statusArray, this.ophHttpCallBackSet);
-    }
-
-    static String toString(InputStream stream) throws IOException { // IO
-        try(BufferedInputStream bis = new BufferedInputStream(stream);
-            ByteArrayOutputStream buf = new ByteArrayOutputStream()) {
-            int result;
-            result = bis.read();
-            while(result != -1) {
-                buf.write((byte) result);
-                result = bis.read();
-            }
-            return buf.toString();
-        }
     }
 
 }
