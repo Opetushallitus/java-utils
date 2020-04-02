@@ -78,7 +78,7 @@ public class ApplicationSession {
                 });
     }
 
-    private HttpCookie getCookie(HttpResponse<Void> response, ServiceTicket serviceTicket) {
+    public HttpCookie getCookie(HttpResponse<Void> response, ServiceTicket serviceTicket) {
         URI loginUrl = serviceTicket.getLoginUrl();
         return this.cookieManager.getCookieStore().get(loginUrl).stream()
                 .filter(cookie -> loginUrl.getPath().startsWith(cookie.getPath()) && this.cookieName.equals(cookie.getName()))
