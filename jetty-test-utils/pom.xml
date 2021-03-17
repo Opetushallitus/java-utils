@@ -8,7 +8,7 @@
         <relativePath>..</relativePath>
     </parent>
     <artifactId>jetty-test-utils</artifactId>
-    <version>0.2.1-SNAPSHOT</version>
+    <version>0.2.2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
@@ -29,7 +29,7 @@
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId> commons-codec</artifactId>
-            <version>1.11</version>
+            <version>1.15</version>
         </dependency>
     </dependencies>
 </project>

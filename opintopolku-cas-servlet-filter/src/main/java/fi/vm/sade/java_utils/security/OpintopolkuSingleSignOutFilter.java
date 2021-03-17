@@ -23,9 +23,7 @@ public class OpintopolkuSingleSignOutFilter implements Filter {
         this.singleSignOutFilter.setIgnoreInitConfiguration(true);
         this.singleSignOutFilter.setArtifactParameterName(Protocol.CAS2.getArtifactParameterName());
         this.singleSignOutFilter.setLogoutParameterName("logoutRequest");
-        this.singleSignOutFilter.setFrontLogoutParameterName("SAMLRequest");
         this.singleSignOutFilter.setRelayStateParameterName("RelayState");
-        this.singleSignOutFilter.setCasServerUrlPrefix(webUrlCas);
         this.singleSignOutFilter.init(filterConfig);
     }
 
