@@ -1,12 +1,14 @@
 package fi.vm.sade.javautils.cas;
 
+import okhttp3.Cookie;
+
 import java.net.HttpCookie;
 
 public class SessionToken {
     public final ServiceTicket serviceTicket;
-    public final HttpCookie cookie;
+    public final Cookie cookie;
 
-    public SessionToken(ServiceTicket serviceTicket, HttpCookie cookie) {
+    public SessionToken(ServiceTicket serviceTicket, Cookie cookie) {
         this.serviceTicket = serviceTicket;
         this.cookie = cookie;
     }

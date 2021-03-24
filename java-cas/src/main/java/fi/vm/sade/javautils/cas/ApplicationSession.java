@@ -1,94 +1,100 @@
 package fi.vm.sade.javautils.cas;
 
+import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.CookieManager;
-import java.net.HttpCookie;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class ApplicationSession {
+    private static final Logger logger = LoggerFactory.getLogger(ApplicationSession.class);
 
     private static final String CSRF_VALUE = "CSRF";
 
-    private final HttpClient client;
+    private final OkHttpClient client;
     private final CookieManager cookieManager;
     private final String callerId;
     private final Duration authenticationTimeout;
     private final CasSession casSession;
     private final String service;
     private final String cookieName;
-    private CompletableFuture<SessionToken> sessionToken;
+    private SessionToken sessionToken;
 
-    public ApplicationSession(HttpClient client,
+    public ApplicationSession(OkHttpClient client,
                               CookieManager cookieManager,
                               String callerId,
                               Duration authenticationTimeout,
                               CasSession casSession,
                               String service,
                               String cookieName) {
-        this.client = client;
         this.cookieManager = cookieManager;
+        this.client = client;
         this.callerId = callerId;
         this.authenticationTimeout = authenticationTimeout;
         this.casSession = casSession;
         this.service = service;
         this.cookieName = cookieName;
-        this.sessionToken = CompletableFuture.failedFuture(new IllegalStateException("uninitialized"));
+        this.sessionToken = null;
     }
 
     public CompletableFuture<SessionToken> getSessionToken() {
-        CompletableFuture<SessionToken> currentSessionToken = this.sessionToken;
-        if (currentSessionToken.isCompletedExceptionally()) {
+        SessionToken currentSessionToken = this.sessionToken;
+        if (currentSessionToken == null) {
             synchronized (this) {
-                if (this.sessionToken.isCompletedExceptionally()) {
-                    this.sessionToken = this.casSession.getServiceTicket(this.service).thenComposeAsync(this::requestSession);
-                }
-                currentSessionToken = this.sessionToken;
+                ServiceTicket serviceTicket = this.casSession.getServiceTicket(this.service);
+                this.sessionToken = this.requestSession(serviceTicket);
+                return CompletableFuture.completedFuture(this.sessionToken);
             }
         }
-        return currentSessionToken;
+        return CompletableFuture.completedFuture(currentSessionToken);
     }
 
-    public synchronized void invalidateSession(SessionToken sessionToken) {
-        if (this.sessionToken.isCompletedExceptionally() || sessionToken.equals(this.sessionToken.getNow(null))) {
-            this.sessionToken = CompletableFuture.failedFuture(new IllegalStateException("invalidated"));
-        }
-    }
-
-    private CompletableFuture<SessionToken> requestSession(ServiceTicket serviceTicket) {
-        HttpRequest request = HttpRequest.newBuilder(serviceTicket.getLoginUrl())
-                .GET()
+    private SessionToken requestSession(ServiceTicket serviceTicket) {
+        Request request = new Request.Builder()
+                .url(serviceTicket.getLoginUrl())
                 .header("Caller-Id", this.callerId)
                 .header("CSRF", CSRF_VALUE)
                 .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                .timeout(this.authenticationTimeout)
+                .header("Connection", "close")
+                //TODO.timeout(this.authenticationTimeout)
                 .build();
-        return this.client.sendAsync(request, HttpResponse.BodyHandlers.discarding())
-                .handle((response, e) -> {
-                    if (e != null) {
-                        throw new IllegalStateException(String.format(
-                                "%s: Failed to establish session",
-                                request.uri().toString()
-                        ), e);
-                    }
-                    return new SessionToken(serviceTicket, this.getCookie(response, serviceTicket));
-                });
+
+        try {
+            Response response = this.client.newCall(request).execute();
+            return new SessionToken(serviceTicket, getCookie(response, serviceTicket));
+        } catch (Exception e) {
+            throw new IllegalStateException(String.format(
+                    "%s: Failed to establish session",
+                    request.url()
+            ), e);
+        }
     }
 
-    private HttpCookie getCookie(HttpResponse<Void> response, ServiceTicket serviceTicket) {
-        URI loginUrl = serviceTicket.getLoginUrl();
-        return this.cookieManager.getCookieStore().get(loginUrl).stream()
-                .filter(cookie -> loginUrl.getPath().startsWith(cookie.getPath()) && this.cookieName.equals(cookie.getName()))
+    private List<Cookie> resolveCookies(Response response, ServiceTicket serviceTicket) {
+        List<String> cookieStrings = response.headers("Set-cookie");
+        List<Cookie> cookieList = new ArrayList<>();
+        for (String cookieString : cookieStrings) {
+            cookieList.add(Cookie.parse(HttpUrl.parse(serviceTicket.getLoginUrl()), cookieString));
+        }
+        return cookieList;
+    }
+
+    private Cookie getCookie(Response response, ServiceTicket serviceTicket) {
+        URI loginUrl = URI.create(serviceTicket.getLoginUrl());
+        List<Cookie> cookieList = resolveCookies(response, serviceTicket);
+        return cookieList.stream().filter(cookie -> loginUrl.getPath().startsWith(cookie.path()) && this.cookieName.equals(cookie.name()))
                 .findAny()
                 .orElseThrow(() -> new IllegalStateException(String.format(
                         "%s %d: Failed to establish session. No cookie %s set. Headers: %s",
-                        response.uri().toString(),
-                        response.statusCode(),
+                        loginUrl,
+                        response.code(),
                         this.cookieName,
                         response.headers()
-                    )));
+                )));
     }
 }

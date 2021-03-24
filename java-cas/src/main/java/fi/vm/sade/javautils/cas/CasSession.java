@@ -1,84 +1,95 @@
 package fi.vm.sade.javautils.cas;
 
+import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
 
 public class CasSession {
+    private static final Logger logger = LoggerFactory.getLogger(CasSession.class);
 
     private static final String CSRF_VALUE = "CSRF";
 
-    private final HttpClient client;
+    private final OkHttpClient client;
     private final Duration requestTimeout;
     private final String callerId;
-    private final URI ticketsUrl;
+    private final HttpUrl ticketsUrl;
     private final String username;
     private final String password;
-    private CompletableFuture<URI> ticketGrantingTicket;
+    private URI ticketGrantingTicket;
 
-    public CasSession(HttpClient client,
+    public CasSession(OkHttpClient client,
                       Duration requestTimeout,
                       String callerId,
-                      URI ticketsUrl,
+                      HttpUrl ticketsUrl,
                       String username,
                       String password) {
-        this.client = client;
+
         this.requestTimeout = requestTimeout;
+        this.client = client;
         this.callerId = callerId;
         this.ticketsUrl = ticketsUrl;
         this.username = username;
         this.password = password;
-        this.ticketGrantingTicket = CompletableFuture.failedFuture(new IllegalStateException("uninitialized"));
+        this.ticketGrantingTicket = null;
     }
 
-    public CompletableFuture<ServiceTicket> getServiceTicket(String service) {
-        return this.getTicketGrantingTicket()
-                .thenCompose(currentTicketGrantingTicket -> this.requestServiceTicket(currentTicketGrantingTicket, service)
-                        .handle((serviceTicket, e) -> {
-                            if (serviceTicket != null) {
-                                return CompletableFuture.completedFuture(serviceTicket);
-                            }
-                            this.invalidateTicketGrantingTicket(currentTicketGrantingTicket);
-                            return getTicketGrantingTicket()
-                                    .thenCompose(newTicketGrantingTicket -> this.requestServiceTicket(newTicketGrantingTicket, service));
-                        }))
-                .thenCompose(f -> f);
+    public ServiceTicket getServiceTicket(String service) {
+        try {
+            this.ticketGrantingTicket = this.getTicketGrantingTicket();
+            ServiceTicket serviceTicket = this.requestServiceTicket(this.ticketGrantingTicket, service);
+            if (serviceTicket != null) {
+                return serviceTicket;
+            }
+            this.invalidateTicketGrantingTicket(this.ticketGrantingTicket);
+            this.ticketGrantingTicket = this.getTicketGrantingTicket();
+            serviceTicket = this.requestServiceTicket(this.ticketGrantingTicket, service);
+            return serviceTicket;
+        } catch (Exception e) {
+            throw new IllegalStateException("Error getting service ticket for service: " + service, e);
+        }
     }
 
-    private CompletableFuture<URI> getTicketGrantingTicket() {
-        CompletableFuture<URI> currentTicketGrantingTicket = this.ticketGrantingTicket;
-        if (currentTicketGrantingTicket.isCompletedExceptionally()) {
+    private URI getTicketGrantingTicket() {
+        URI currentTicketGrantingTicket = this.ticketGrantingTicket;
+
+        if (currentTicketGrantingTicket == null) {
             synchronized (this) {
-                if (this.ticketGrantingTicket.isCompletedExceptionally()) {
-                    HttpRequest request = HttpRequest.newBuilder(this.ticketsUrl)
-                            .POST(HttpRequest.BodyPublishers.ofString(String.format(
-                                    "username=%s&password=%s",
-                                    URLEncoder.encode(this.username, Charset.forName("UTF-8")),
-                                    URLEncoder.encode(this.password, Charset.forName("UTF-8"))
-                            )))
-                            .header("Content-Type", "application/x-www-form-urlencoded")
-                            .header("Caller-Id", this.callerId)
-                            .header("CSRF", CSRF_VALUE)
-                            .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                            .timeout(this.requestTimeout)
+                if (this.ticketGrantingTicket == null) {
+                    RequestBody body = new FormBody.Builder()
+                            .add("username", URLEncoder.encode(this.username, StandardCharsets.UTF_8))
+                            .add("password", URLEncoder.encode(this.password, StandardCharsets.UTF_8))
                             .build();
-                    this.ticketGrantingTicket = this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString(Charset.forName("UTF-8")))
-                            .handle((response, e) -> {
-                                if (e != null) {
-                                    throw new IllegalStateException(request.uri().toString(), e);
-                                }
-                                if (response.statusCode() != 201) {
-                                    throw new IllegalStateException(String.format("%s %d: %s", request.uri().toString(), response.statusCode(), response.body()));
-                                }
-                                return response.headers().firstValue("Location")
-                                        .map(URI::create)
-                                        .orElseThrow(() -> new IllegalStateException(String.format("%s %d: %s", request.uri().toString(), response.statusCode(), "Could not parse TGT, no Location header found")));
-                            });
+                    //TODO timeouts!
+
+                    Request request = new Request.Builder()
+                            .url(this.ticketsUrl)
+                            .post(body)
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .addHeader("Caller-Id", this.callerId)
+                            .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                            .header("Connection", "close")
+                            .build();
+
+                    try (Response response = this.client.newCall(request).execute()) {
+                        if (response.code() != 201) {
+                            throw new IllegalStateException(String.format("%s %d: %s", request.url().toString(), response.code(), response.body()));
+                        }
+
+                        try {
+                            this.ticketGrantingTicket = response.headers("Location").stream().findFirst()
+                                    .map(URI::create).get();
+                        } catch (Exception e) {
+                            throw new IllegalStateException(String.format("%s %d: %s", request.url().toString(), response.code(), "Could not parse TGT, no Location header found"));
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
                 return this.ticketGrantingTicket;
             }
@@ -87,33 +98,34 @@ public class CasSession {
     }
 
     private synchronized void invalidateTicketGrantingTicket(URI invalidTicketGrantingTicket) {
-        if (this.ticketGrantingTicket.isCompletedExceptionally() || (invalidTicketGrantingTicket != null && invalidTicketGrantingTicket.equals(this.ticketGrantingTicket.getNow(null)))) {
-            this.ticketGrantingTicket = CompletableFuture.failedFuture(new IllegalStateException("invalidated"));
+        if (this.ticketGrantingTicket == null || (invalidTicketGrantingTicket != null && invalidTicketGrantingTicket.equals(this.ticketGrantingTicket))) {
+            this.ticketGrantingTicket = null;
         }
     }
 
-    private CompletableFuture<ServiceTicket> requestServiceTicket(URI tgt, String service) {
-        HttpRequest request = HttpRequest.newBuilder(tgt)
-                .POST(HttpRequest.BodyPublishers.ofString(String.format(
-                        "service=%s",
-                        URLEncoder.encode(service, Charset.forName("UTF-8"))
-                )))
-                .header("Content-Type", "application/x-www-form-urlencoded")
-                .header("Caller-Id", this.callerId)
-                .header("CSRF", CSRF_VALUE)
-                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                .timeout(this.requestTimeout)
+    public ServiceTicket requestServiceTicket(URI tgt, String service) {
+        RequestBody body = new FormBody.Builder()
+                .add("service", URLEncoder.encode(service, StandardCharsets.UTF_8))
                 .build();
-        return this.client.sendAsync(request, HttpResponse.BodyHandlers.ofString(Charset.forName("UTF-8")))
-                .handle((response, e) -> {
-                    if (e != null) {
-                        throw new IllegalStateException(request.uri().toString(), e);
-                    }
-                    if (response.statusCode() != 200) {
-                        throw new IllegalStateException(String.format("%s %d: %s", response.uri().toString(), response.statusCode(), response.body()));
-                    }
-                    return new ServiceTicket(service, response.body());
-                });
-    }
 
+        Request request = new Request.Builder()
+                .url(HttpUrl.get(tgt.toString()))
+                .post(body)
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Caller-Id", this.callerId)
+                .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                .header("Connection", "close")
+                .build();
+        //TODO timeouts!
+
+        try (Response response = this.client.newCall(request).execute()) {
+            if (response.code() != 200 || response.body().contentLength() == 0) {
+                throw new IllegalStateException(String.format("%s %d: %s", request.url(), response.code(), response.body()));
+            }
+            ServiceTicket ticket = new ServiceTicket(service, response.body().string());
+            return ticket;
+        } catch (Exception e) {
+            throw new IllegalStateException(request.url().toString(), e);
+        }
+    }
 }

@@ -11,8 +11,8 @@ public class ServiceTicket {
         this.serviceTicket = serviceTicket;
     }
 
-    public URI getLoginUrl() {
-        return URI.create(this.service + "?ticket=" + this.serviceTicket);
+    public String getLoginUrl() {
+        return this.service + "?ticket=" + this.serviceTicket;
     }
 
     @Override
