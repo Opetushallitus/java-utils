@@ -13,8 +13,6 @@ import java.time.Duration;
 public class CasSession {
     private static final Logger logger = LoggerFactory.getLogger(CasSession.class);
 
-    private static final String CSRF_VALUE = "CSRF";
-
     private final OkHttpClient client;
     private final Duration requestTimeout;
     private final String callerId;
@@ -46,7 +44,6 @@ public class CasSession {
             if (serviceTicket != null) {
                 return serviceTicket;
             }
-            this.invalidateTicketGrantingTicket(this.ticketGrantingTicket);
             this.ticketGrantingTicket = this.getTicketGrantingTicket();
             serviceTicket = this.requestServiceTicket(this.ticketGrantingTicket, service);
             return serviceTicket;
@@ -72,7 +69,7 @@ public class CasSession {
                             .post(body)
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
                             .addHeader("Caller-Id", this.callerId)
-                            .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                            .addHeader("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
                             .header("Connection", "close")
                             .build();
 
@@ -97,12 +94,6 @@ public class CasSession {
         return currentTicketGrantingTicket;
     }
 
-    private synchronized void invalidateTicketGrantingTicket(URI invalidTicketGrantingTicket) {
-        if (this.ticketGrantingTicket == null || (invalidTicketGrantingTicket != null && invalidTicketGrantingTicket.equals(this.ticketGrantingTicket))) {
-            this.ticketGrantingTicket = null;
-        }
-    }
-
     public ServiceTicket requestServiceTicket(URI tgt, String service) {
         RequestBody body = new FormBody.Builder()
                 .add("service", URLEncoder.encode(service, StandardCharsets.UTF_8))
@@ -113,7 +104,7 @@ public class CasSession {
                 .post(body)
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Caller-Id", this.callerId)
-                .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                .addHeader("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
                 .header("Connection", "close")
                 .build();
         //TODO timeouts!

@@ -14,8 +14,6 @@ import java.util.concurrent.CompletableFuture;
 public class ApplicationSession {
     private static final Logger logger = LoggerFactory.getLogger(ApplicationSession.class);
 
-    private static final String CSRF_VALUE = "CSRF";
-
     private final OkHttpClient client;
     private final CookieManager cookieManager;
     private final String callerId;
@@ -58,43 +56,20 @@ public class ApplicationSession {
         Request request = new Request.Builder()
                 .url(serviceTicket.getLoginUrl())
                 .header("Caller-Id", this.callerId)
-                .header("CSRF", CSRF_VALUE)
-                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                .header("CSRF", CasEnums.CSRF_VALUE)
+                .header("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
                 .header("Connection", "close")
                 //TODO.timeout(this.authenticationTimeout)
                 .build();
 
         try {
             Response response = this.client.newCall(request).execute();
-            return new SessionToken(serviceTicket, getCookie(response, serviceTicket));
+            return new SessionToken(serviceTicket, CasUtils.getCookie(response, serviceTicket, this.cookieName));
         } catch (Exception e) {
             throw new IllegalStateException(String.format(
                     "%s: Failed to establish session",
                     request.url()
             ), e);
         }
-    }
-
-    private List<Cookie> resolveCookies(Response response, ServiceTicket serviceTicket) {
-        List<String> cookieStrings = response.headers("Set-cookie");
-        List<Cookie> cookieList = new ArrayList<>();
-        for (String cookieString : cookieStrings) {
-            cookieList.add(Cookie.parse(HttpUrl.parse(serviceTicket.getLoginUrl()), cookieString));
-        }
-        return cookieList;
-    }
-
-    private Cookie getCookie(Response response, ServiceTicket serviceTicket) {
-        URI loginUrl = URI.create(serviceTicket.getLoginUrl());
-        List<Cookie> cookieList = resolveCookies(response, serviceTicket);
-        return cookieList.stream().filter(cookie -> loginUrl.getPath().startsWith(cookie.path()) && this.cookieName.equals(cookie.name()))
-                .findAny()
-                .orElseThrow(() -> new IllegalStateException(String.format(
-                        "%s %d: Failed to establish session. No cookie %s set. Headers: %s",
-                        loginUrl,
-                        response.code(),
-                        this.cookieName,
-                        response.headers()
-                )));
     }
 }

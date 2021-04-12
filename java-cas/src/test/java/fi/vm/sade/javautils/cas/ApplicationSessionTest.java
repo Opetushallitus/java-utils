@@ -17,7 +17,6 @@ import java.net.CookieManager;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -34,7 +33,6 @@ public class ApplicationSessionTest {
 
     private static final String VALID_TICKET = "it-ankan-tiketti";
     private static final String TEST_SERVICE = "test-service";
-    private static final String COOKIE_NAME = "JSESSIONID";
 
     @Before
     public void init() {
@@ -44,7 +42,7 @@ public class ApplicationSessionTest {
         this.client = new OkHttpClient();
         this.authenticationTimeout = Duration.ofSeconds(10);
         this.casSession = new CasSession(client, Duration.ofMillis(1000), "Caller-id", mockWebServer.url("/cas/"), "it-ankka", "neverstopthemadness");
-        this.applicationSession = new ApplicationSession(client, cookieManager, "Caller-Id", authenticationTimeout, casSession, mockWebServer.url("/") + TEST_SERVICE, "JSESSIONID");
+        this.applicationSession = new ApplicationSession(client, cookieManager, "Caller-Id", authenticationTimeout, casSession, mockWebServer.url("/") + TEST_SERVICE, CasEnums.SESSIONCOOKIE_NAME);
     }
 
     @After
@@ -74,7 +72,7 @@ public class ApplicationSessionTest {
                 } else {
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format("JSESSIONID=%s; Path=/test-service", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format(CasEnums.SESSIONCOOKIE_NAME + "=%s; Path=/test-service", "123456789"))
                             .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
                             .setResponseCode(200);
                 }
@@ -103,7 +101,7 @@ public class ApplicationSessionTest {
                 } else {
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format("JSESSIONID=%s; Path=/test-service", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format(CasEnums.SESSIONCOOKIE_NAME + "=%s; Path=/test-service", "123456789"))
                             .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
                             .setResponseCode(200);
                 }
@@ -131,7 +129,7 @@ public class ApplicationSessionTest {
                 } else {
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format("JSESSIONID=%s; Path=/test-service", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format(CasEnums.SESSIONCOOKIE_NAME + "=%s; Path=/test-service", "123456789"))
                             .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
                             .setResponseCode(200);
                 }
@@ -187,7 +185,7 @@ public class ApplicationSessionTest {
                 } else {
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format("JSESSIONID=%s; Path=/test-service", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format(CasEnums.SESSIONCOOKIE_NAME + "=%s; Path=/test-service", "123456789"))
                             .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
                             .setResponseCode(200);
                 }
@@ -200,7 +198,7 @@ public class ApplicationSessionTest {
         assertEquals(VALID_TICKET, result.serviceTicket.serviceTicket);
         assertEquals(mockWebServer.url("/") + TEST_SERVICE, result.serviceTicket.service);
         assertEquals("/" + TEST_SERVICE, result.cookie.path());
-        assertEquals(COOKIE_NAME, result.cookie.name());
+        assertEquals(CasEnums.SESSIONCOOKIE_NAME, result.cookie.name());
         assertEquals("123456789", result.cookie.value());
         System.out.println("done");
     }
