@@ -9,6 +9,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class CasHttpClient {
@@ -33,7 +34,13 @@ public class CasHttpClient {
 
     private final OkHttpClient client;
 
-    public CasHttpClient(OkHttpClient client, String callerId, String service, String ticketsUrl, String username, String password, Duration sessionTimeout) {
+    public CasHttpClient(OkHttpClient client,
+                         String callerId,
+                         String service,
+                         String ticketsUrl,
+                         String username,
+                         String password,
+                         Duration sessionTimeout) {
         this.callerId = callerId;
         this.client = client;
         this.service = service;
@@ -99,6 +106,7 @@ public class CasHttpClient {
                                 .addHeader("Cookie", String.format("CSRF=%s;", this.callerId))
                                 .header("Connection", "close")
                                 .build();
+
                         return callToFuture(this.client.newCall(requestServiceTicket)).thenCompose((stResponse) -> {
                             if (stResponse.isSuccessful()) {
                                 return CompletableFuture.completedFuture(stResponse);
@@ -112,7 +120,6 @@ public class CasHttpClient {
                 });
     }
 
-
     public CompletableFuture<Response> call(Request request) {
         return call(request, 0);
     }
@@ -120,20 +127,23 @@ public class CasHttpClient {
     private CompletableFuture<Response> call(final Request request, final int tryNumber) {
         if (currentTokenCouldBeValid()) {
             Request requestWithSessionCookie = new Request.Builder(request)
-                    .addHeader("Set-Cookie", "TODO")
+                    .addHeader("Caller-Id", this.callerId)
+                    .addHeader("Cookie", String.format("CSRF=%s;", this.callerId))
+                    .addHeader("Cookie", CasEnums.SESSION_COOKIE + "=" + TOKEN_STORE.get().value)
                     .build();
+
             return callToFuture(this.client.newCall(requestWithSessionCookie))
                     .thenCompose((response) -> {
-                        boolean unauthorized = true;
+                        AtomicBoolean unauthorized = new AtomicBoolean(true);
                         boolean shouldGiveUp = tryNumber > 1;
 
                         if (response.code() == 302) {
                             return fetchCasSession().thenCompose((casResponse) -> {
-                                String setSessionCookie = null;
                                 try {
-                                    setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), CasEnums.SESSIONCOOKIE_NAME).value();
+                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), CasEnums.SESSION_COOKIE).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
+                                        unauthorized.set(false);
                                         return call(request, tryNumber);
                                     } else {
                                         return CompletableFuture.failedFuture(new RuntimeException("Invalid session token from CAS. Should check credentials!"));
@@ -144,11 +154,23 @@ public class CasHttpClient {
                             });
                         }
                         if (response.code() == 401) {
-                            return CompletableFuture.failedFuture(new RuntimeException("Error getting ticket from CAS."));
+                            return fetchCasSession().thenCompose((casResponse) -> {
+                                try {
+                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), CasEnums.SESSION_COOKIE).value();
+                                    TOKEN_STORE.set(new SessionCookies(setSessionCookie));
+                                    if (currentTokenCouldBeValid()) {
+                                        unauthorized.set(false);
+                                        return call(request, tryNumber);
+                                    } else {
+                                        return CompletableFuture.failedFuture(new RuntimeException("Invalid session token from CAS. Should check credentials!"));
+                                    }
+                                } catch (IOException e) {
+                                    return CompletableFuture.failedFuture(new RuntimeException("Error getting cookie from response.", e));
+                                }
+                            });
                         }
 
-
-                        if (unauthorized && !shouldGiveUp) {
+                        if (unauthorized.get() && !shouldGiveUp) {
                             TOKEN_STORE.set(null);
                             return call(request, tryNumber + 1);
                         } else {
@@ -157,9 +179,8 @@ public class CasHttpClient {
                     });
         } else {
             return fetchCasSession().thenCompose((response) -> {
-                String setSessionCookie = null;
                 try {
-                    setSessionCookie = CasUtils.getCookie(response, new ServiceTicket(this.service, response.body().string()), CasEnums.SESSIONCOOKIE_NAME).value();
+                    String setSessionCookie = CasUtils.getCookie(response, new ServiceTicket(this.service, response.body().string()), CasEnums.SESSION_COOKIE).value();
                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                     if (currentTokenCouldBeValid()) {
                         return call(request, tryNumber);
