@@ -24,6 +24,7 @@ public class CasHttpClient {
     }
 
     private final String callerId;
+    private final String cookieName;
     private final String service;
     private final String ticketsUrl;
     private final String username;
@@ -36,13 +37,15 @@ public class CasHttpClient {
 
     public CasHttpClient(OkHttpClient client,
                          String callerId,
+                         String cookieName,
                          String service,
                          String ticketsUrl,
                          String username,
                          String password,
                          Duration sessionTimeout) {
-        this.callerId = callerId;
         this.client = client;
+        this.callerId = callerId;
+        this.cookieName = cookieName;
         this.service = service;
         this.ticketsUrl = ticketsUrl;
         this.username = username;
@@ -51,7 +54,9 @@ public class CasHttpClient {
     }
 
     private boolean currentTokenCouldBeValid() {
-        if (TOKEN_STORE.get().created > System.currentTimeMillis() - this.sessionTimeout.toMillis()) {
+        if (TOKEN_STORE.get() == null) {
+            return false;
+        } else if (TOKEN_STORE.get().created > System.currentTimeMillis() - this.sessionTimeout.toMillis()) {
             return TOKEN_STORE.get() != null;
         }
         return false;
@@ -91,9 +96,10 @@ public class CasHttpClient {
         return callToFuture(this.client.newCall(requestTicketGrantingTicket))
                 .thenCompose((tgtResponse) -> {
                     if (tgtResponse.isSuccessful()) {
+                        logger.info("got tgt response: " + tgtResponse.toString());
                         HttpUrl ticketGrantingTicketUrl = HttpUrl.get(tgtResponse.headers("Location").stream().findFirst()
                                 .get());
-
+                        logger.info("got tgt url: " + ticketGrantingTicketUrl.toString());
                         RequestBody serviceTicketRequestBody = new FormBody.Builder()
                                 .add("service", URLEncoder.encode(this.service, StandardCharsets.UTF_8))
                                 .build();
@@ -107,13 +113,39 @@ public class CasHttpClient {
                                 .header("Connection", "close")
                                 .build();
 
-                        return callToFuture(this.client.newCall(requestServiceTicket)).thenCompose((stResponse) -> {
-                            if (stResponse.isSuccessful()) {
-                                return CompletableFuture.completedFuture(stResponse);
-                            } else {
-                                return CompletableFuture.failedFuture(new RuntimeException("Invalid service ticket from CAS"));
-                            }
-                        });
+                        return callToFuture(this.client.newCall(requestServiceTicket))
+                                .thenCompose((stResponse) -> {
+                                    if (stResponse.isSuccessful()) {
+                                        logger.info("got st response: " + stResponse.toString());
+                                        ServiceTicket serviceTicket = null;
+                                        try {
+                                            serviceTicket = new ServiceTicket(this.service, stResponse.body().string());
+                                            Request sessionRequest = new Request.Builder()
+                                                    .url(serviceTicket.getLoginUrl())
+                                                    .header("Caller-Id", this.callerId)
+                                                    .header("CSRF", CasEnums.CSRF_VALUE)
+                                                    .header("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
+                                                    .header("Connection", "close")
+                                                    .build();
+
+                                            ServiceTicket finalServiceTicket = serviceTicket;
+                                            return callToFuture(this.client.newCall(sessionRequest))
+                                                    .thenCompose((sessionResponse) -> {
+                                                        if (sessionResponse.isSuccessful()) {
+                                                            return CompletableFuture.completedFuture(sessionResponse);
+                                                        } else {
+                                                            return CompletableFuture.failedFuture(new RuntimeException("Failed to fetch Session from CAS."));
+                                                        }
+                                                    });
+
+                                        } catch (IOException e) {
+                                            return CompletableFuture.failedFuture(new RuntimeException("Failed to create Service ticket from CAS response, " + e));
+                                        }
+
+                                    } else {
+                                        return CompletableFuture.failedFuture(new RuntimeException("Invalid service ticket from CAS"));
+                                    }
+                                });
                     } else {
                         return CompletableFuture.failedFuture(new RuntimeException("Invalid ticket granting ticket from CAS"));
                     }
@@ -129,7 +161,7 @@ public class CasHttpClient {
             Request requestWithSessionCookie = new Request.Builder(request)
                     .addHeader("Caller-Id", this.callerId)
                     .addHeader("Cookie", String.format("CSRF=%s;", this.callerId))
-                    .addHeader("Cookie", CasEnums.SESSION_COOKIE + "=" + TOKEN_STORE.get().value)
+                    .addHeader("Cookie", this.cookieName + "=" + TOKEN_STORE.get().value)
                     .build();
 
             return callToFuture(this.client.newCall(requestWithSessionCookie))
@@ -140,7 +172,7 @@ public class CasHttpClient {
                         if (response.code() == 302) {
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
-                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), CasEnums.SESSION_COOKIE).value();
+                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
                                         unauthorized.set(false);
@@ -156,7 +188,7 @@ public class CasHttpClient {
                         if (response.code() == 401) {
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
-                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), CasEnums.SESSION_COOKIE).value();
+                                    String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
                                         unauthorized.set(false);
@@ -180,7 +212,10 @@ public class CasHttpClient {
         } else {
             return fetchCasSession().thenCompose((response) -> {
                 try {
-                    String setSessionCookie = CasUtils.getCookie(response, new ServiceTicket(this.service, response.body().string()), CasEnums.SESSION_COOKIE).value();
+//                    logger.info("got response from fetch: body is : " + response.body().string());
+                    ServiceTicket serviceTicket = new ServiceTicket(this.service, response.body().string());
+                    String setSessionCookie = CasUtils.getCookie(response, serviceTicket, this.cookieName).value();
+                    logger.info("setSessionCookie: " + setSessionCookie.toString());
                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                     if (currentTokenCouldBeValid()) {
                         return call(request, tryNumber);
