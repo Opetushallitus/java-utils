@@ -98,7 +98,7 @@ public class ApplicationSessionTest {
                 } else if (request.getPath().contains("tickets") && request.getMethod().equals("POST")) {
                     return new MockResponse()
                             .setBody(VALID_TICKET)
-                            .setResponseCode(200);
+                            .setResponseCode(500);
                 } else {
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")

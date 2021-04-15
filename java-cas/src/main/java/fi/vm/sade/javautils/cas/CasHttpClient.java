@@ -157,7 +157,10 @@ public class CasHttpClient {
     }
 
     private CompletableFuture<Response> call(final Request request, final int tryNumber) {
+        AtomicBoolean unauthorized = new AtomicBoolean(true);
         if (currentTokenCouldBeValid()) {
+
+            logger.info("currentTokenCouldBeValid");
             Request requestWithSessionCookie = new Request.Builder(request)
                     .addHeader("Caller-Id", this.callerId)
                     .addHeader("Cookie", String.format("CSRF=%s;", this.callerId))
@@ -165,16 +168,22 @@ public class CasHttpClient {
                     .build();
 
             return callToFuture(this.client.newCall(requestWithSessionCookie))
+
                     .thenCompose((response) -> {
-                        AtomicBoolean unauthorized = new AtomicBoolean(true);
+                        if (response.code() == 200) {
+                            unauthorized.set(false);
+                        }
+
                         boolean shouldGiveUp = tryNumber > 1;
 
                         if (response.code() == 302) {
+                            logger.info("response code 302, fetching cas session");
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
                                     String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
+                                        logger.info("currentTokenCouldBeValid, fetching cas session 302");
                                         unauthorized.set(false);
                                         return call(request, tryNumber);
                                     } else {
@@ -186,11 +195,13 @@ public class CasHttpClient {
                             });
                         }
                         if (response.code() == 401) {
+                            logger.info("response code 401, fetching cas session");
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
                                     String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
+                                        logger.info("currentTokenCouldBeValid, fetching cas session 401");
                                         unauthorized.set(false);
                                         return call(request, tryNumber);
                                     } else {
@@ -203,6 +214,7 @@ public class CasHttpClient {
                         }
 
                         if (unauthorized.get() && !shouldGiveUp) {
+                            logger.info("UNAUTHORIZED!!!");
                             TOKEN_STORE.set(null);
                             return call(request, tryNumber + 1);
                         } else {
@@ -210,6 +222,7 @@ public class CasHttpClient {
                         }
                     });
         } else {
+            logger.info("current token not valid");
             return fetchCasSession().thenCompose((response) -> {
                 try {
 //                    logger.info("got response from fetch: body is : " + response.body().string());
@@ -218,6 +231,7 @@ public class CasHttpClient {
                     logger.info("setSessionCookie: " + setSessionCookie.toString());
                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                     if (currentTokenCouldBeValid()) {
+                        unauthorized.set(false);
                         return call(request, tryNumber);
                     } else {
                         return CompletableFuture.failedFuture(new RuntimeException("Invalid session token from CAS. Should check credentials!"));
