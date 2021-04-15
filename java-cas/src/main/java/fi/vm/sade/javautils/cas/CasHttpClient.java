@@ -79,6 +79,13 @@ public class CasHttpClient {
     }
 
     private CompletableFuture<Response> fetchCasSession() {
+        return fetchCasSession(0);
+    }
+
+//    TODO private Request buildRequest()
+
+    private CompletableFuture<Response> fetchCasSession(final int tryNumber) {
+        boolean shouldGiveUp = tryNumber > 1;
         RequestBody ticketGrantingTicketRequestBody = new FormBody.Builder()
                 .add("username", URLEncoder.encode(this.username, StandardCharsets.UTF_8))
                 .add("password", URLEncoder.encode(this.password, StandardCharsets.UTF_8))
@@ -96,10 +103,8 @@ public class CasHttpClient {
         return callToFuture(this.client.newCall(requestTicketGrantingTicket))
                 .thenCompose((tgtResponse) -> {
                     if (tgtResponse.isSuccessful()) {
-                        logger.info("got tgt response: " + tgtResponse.toString());
                         HttpUrl ticketGrantingTicketUrl = HttpUrl.get(tgtResponse.headers("Location").stream().findFirst()
                                 .get());
-                        logger.info("got tgt url: " + ticketGrantingTicketUrl.toString());
                         RequestBody serviceTicketRequestBody = new FormBody.Builder()
                                 .add("service", URLEncoder.encode(this.service, StandardCharsets.UTF_8))
                                 .build();
@@ -116,38 +121,56 @@ public class CasHttpClient {
                         return callToFuture(this.client.newCall(requestServiceTicket))
                                 .thenCompose((stResponse) -> {
                                     if (stResponse.isSuccessful()) {
-                                        logger.info("got st response: " + stResponse.toString());
                                         ServiceTicket serviceTicket = null;
                                         try {
                                             serviceTicket = new ServiceTicket(this.service, stResponse.body().string());
                                             Request sessionRequest = new Request.Builder()
                                                     .url(serviceTicket.getLoginUrl())
                                                     .header("Caller-Id", this.callerId)
-                                                    .header("CSRF", CasEnums.CSRF_VALUE)
-                                                    .header("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
+                                                    .header("CSRF", this.callerId)
+                                                    .header("Cookie", String.format("CSRF=%s;", this.callerId))
                                                     .header("Connection", "close")
                                                     .build();
 
-                                            ServiceTicket finalServiceTicket = serviceTicket;
                                             return callToFuture(this.client.newCall(sessionRequest))
                                                     .thenCompose((sessionResponse) -> {
                                                         if (sessionResponse.isSuccessful()) {
                                                             return CompletableFuture.completedFuture(sessionResponse);
                                                         } else {
-                                                            return CompletableFuture.failedFuture(new RuntimeException("Failed to fetch Session from CAS."));
+                                                            if (!shouldGiveUp) {
+                                                                logger.debug("Failed to fetch Session from CAS, retrying...");
+                                                                return fetchCasSession(tryNumber + 1);
+                                                            } else {
+                                                                return CompletableFuture.failedFuture(new RuntimeException("Failed to fetch Session from CAS."));
+                                                            }
                                                         }
                                                     });
 
-                                        } catch (IOException e) {
-                                            return CompletableFuture.failedFuture(new RuntimeException("Failed to create Service ticket from CAS response, " + e));
+                                        } catch (Exception e) {
+                                            if (!shouldGiveUp) {
+                                                return fetchCasSession(tryNumber + 1);
+                                            } else {
+                                                logger.debug("Failed to create Service ticket from CAS response, retrying...");
+                                                return CompletableFuture.failedFuture(new RuntimeException("Failed to create Service ticket from CAS response, " + e));
+                                            }
                                         }
 
                                     } else {
-                                        return CompletableFuture.failedFuture(new RuntimeException("Invalid service ticket from CAS"));
+                                        if (!shouldGiveUp) {
+                                            logger.debug("Invalid service ticket from CAS, retrying...");
+                                            return fetchCasSession(tryNumber + 1);
+                                        } else {
+                                            return CompletableFuture.failedFuture(new RuntimeException("Invalid service ticket from CAS"));
+                                        }
                                     }
                                 });
                     } else {
-                        return CompletableFuture.failedFuture(new RuntimeException("Invalid ticket granting ticket from CAS"));
+                        if (!shouldGiveUp) {
+                            logger.debug("Invalid ticket granting ticket from CAS, retrying...");
+                            return fetchCasSession(tryNumber + 1);
+                        } else {
+                            return CompletableFuture.failedFuture(new RuntimeException("Invalid ticket granting ticket from CAS"));
+                        }
                     }
                 });
     }
@@ -158,9 +181,8 @@ public class CasHttpClient {
 
     private CompletableFuture<Response> call(final Request request, final int tryNumber) {
         AtomicBoolean unauthorized = new AtomicBoolean(true);
+        boolean shouldGiveUp = tryNumber > 1;
         if (currentTokenCouldBeValid()) {
-
-            logger.info("currentTokenCouldBeValid");
             Request requestWithSessionCookie = new Request.Builder(request)
                     .addHeader("Caller-Id", this.callerId)
                     .addHeader("Cookie", String.format("CSRF=%s;", this.callerId))
@@ -168,22 +190,15 @@ public class CasHttpClient {
                     .build();
 
             return callToFuture(this.client.newCall(requestWithSessionCookie))
-
                     .thenCompose((response) -> {
                         if (response.code() == 200) {
                             unauthorized.set(false);
-                        }
-
-                        boolean shouldGiveUp = tryNumber > 1;
-
-                        if (response.code() == 302) {
-                            logger.info("response code 302, fetching cas session");
+                        } else if (response.code() == 302) {
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
                                     String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
-                                        logger.info("currentTokenCouldBeValid, fetching cas session 302");
                                         unauthorized.set(false);
                                         return call(request, tryNumber);
                                     } else {
@@ -193,50 +208,50 @@ public class CasHttpClient {
                                     return CompletableFuture.failedFuture(new RuntimeException("Error getting cookie from response.", e));
                                 }
                             });
-                        }
-                        if (response.code() == 401) {
-                            logger.info("response code 401, fetching cas session");
+                        } else if (response.code() == 401) {
+                            logger.debug("response code 401, fetching cas session");
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
                                     String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
                                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                                     if (currentTokenCouldBeValid()) {
-                                        logger.info("currentTokenCouldBeValid, fetching cas session 401");
                                         unauthorized.set(false);
                                         return call(request, tryNumber);
                                     } else {
                                         return CompletableFuture.failedFuture(new RuntimeException("Invalid session token from CAS. Should check credentials!"));
                                     }
-                                } catch (IOException e) {
+                                } catch (Exception e) {
                                     return CompletableFuture.failedFuture(new RuntimeException("Error getting cookie from response.", e));
                                 }
                             });
                         }
 
                         if (unauthorized.get() && !shouldGiveUp) {
-                            logger.info("UNAUTHORIZED!!!");
                             TOKEN_STORE.set(null);
                             return call(request, tryNumber + 1);
-                        } else {
+                        }
+                        else {
                             return CompletableFuture.completedFuture(response);
                         }
                     });
         } else {
-            logger.info("current token not valid");
+            logger.debug("current token not valid");
             return fetchCasSession().thenCompose((response) -> {
                 try {
-//                    logger.info("got response from fetch: body is : " + response.body().string());
                     ServiceTicket serviceTicket = new ServiceTicket(this.service, response.body().string());
                     String setSessionCookie = CasUtils.getCookie(response, serviceTicket, this.cookieName).value();
-                    logger.info("setSessionCookie: " + setSessionCookie.toString());
                     TOKEN_STORE.set(new SessionCookies(setSessionCookie));
                     if (currentTokenCouldBeValid()) {
                         unauthorized.set(false);
-                        return call(request, tryNumber);
+                        return call(request, tryNumber + 1);
                     } else {
                         return CompletableFuture.failedFuture(new RuntimeException("Invalid session token from CAS. Should check credentials!"));
                     }
-                } catch (IOException e) {
+                } catch (Exception e) {
+                    if (!shouldGiveUp) {
+                        logger.debug("error fetching CAS session, retrying...");
+                        return fetchCasSession(tryNumber + 1);
+                    }
                     return CompletableFuture.failedFuture(new RuntimeException("Error getting cookie from response.", e));
                 }
             });

@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public class ApplicationSession {
+    private static final String CSRF_VALUE = "CSRF";
+
     private static final Logger logger = LoggerFactory.getLogger(ApplicationSession.class);
 
     private final OkHttpClient client;
@@ -56,8 +58,8 @@ public class ApplicationSession {
         Request request = new Request.Builder()
                 .url(serviceTicket.getLoginUrl())
                 .header("Caller-Id", this.callerId)
-                .header("CSRF", CasEnums.CSRF_VALUE)
-                .header("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
+                .header("CSRF", CSRF_VALUE)
+                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                 .header("Connection", "close")
                 //TODO.timeout(this.authenticationTimeout)
                 .build();

@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 public class CasSession {
+    private static final String CSRF_VALUE = "CSRF";
+
     private static final Logger logger = LoggerFactory.getLogger(CasSession.class);
 
     private final OkHttpClient client;
@@ -69,7 +71,7 @@ public class CasSession {
                             .post(body)
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
                             .addHeader("Caller-Id", this.callerId)
-                            .addHeader("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
+                            .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                             .header("Connection", "close")
                             .build();
 
@@ -104,7 +106,7 @@ public class CasSession {
                 .post(body)
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Caller-Id", this.callerId)
-                .addHeader("Cookie", String.format("CSRF=%s;", CasEnums.CSRF_VALUE))
+                .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
                 .header("Connection", "close")
                 .build();
         //TODO timeouts!

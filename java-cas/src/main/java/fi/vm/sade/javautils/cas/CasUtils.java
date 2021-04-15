@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CasUtils {
-
     public static Cookie getCookie(Response response, ServiceTicket serviceTicket, String cookieName) {
         URI loginUri = URI.create(serviceTicket.getLoginUrl());
         List<Cookie> cookieList = new ArrayList<>();
