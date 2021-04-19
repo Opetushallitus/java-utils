@@ -26,7 +26,7 @@ public class CasHttpClient {
     private final String callerId;
     private final String cookieName;
     private final String service;
-    private final String ticketsUrl;
+    private final String casUrl;
     private final String username;
     private final String password;
     private final Duration sessionTimeout;
@@ -39,7 +39,7 @@ public class CasHttpClient {
                          String callerId,
                          String cookieName,
                          String service,
-                         String ticketsUrl,
+                         String casUrl,
                          String username,
                          String password,
                          Duration sessionTimeout) {
@@ -47,7 +47,7 @@ public class CasHttpClient {
         this.callerId = callerId;
         this.cookieName = cookieName;
         this.service = service;
-        this.ticketsUrl = ticketsUrl;
+        this.casUrl = casUrl;
         this.username = username;
         this.password = password;
         this.sessionTimeout = sessionTimeout;
@@ -55,10 +55,13 @@ public class CasHttpClient {
 
     private boolean currentTokenCouldBeValid() {
         if (TOKEN_STORE.get() == null) {
+            logger.info("Tokenstore is null, ticket not valid.");
             return false;
         } else if (TOKEN_STORE.get().created > System.currentTimeMillis() - this.sessionTimeout.toMillis()) {
+            logger.info("Token valid.");
             return TOKEN_STORE.get() != null;
         }
+        logger.info("Token not valid.");
         return false;
     }
 
@@ -92,7 +95,7 @@ public class CasHttpClient {
                 .build();
 
         Request requestTicketGrantingTicket = new Request.Builder()
-                .url(this.ticketsUrl)
+                .url(this.casUrl + "/v1/tickets")
                 .post(ticketGrantingTicketRequestBody)
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Caller-Id", this.callerId)
@@ -123,6 +126,11 @@ public class CasHttpClient {
                                     if (stResponse.isSuccessful()) {
                                         ServiceTicket serviceTicket = null;
                                         try {
+
+
+                                            //TODO /serviceValidate
+
+
                                             serviceTicket = new ServiceTicket(this.service, stResponse.body().string());
                                             Request sessionRequest = new Request.Builder()
                                                     .url(serviceTicket.getLoginUrl())
@@ -138,7 +146,7 @@ public class CasHttpClient {
                                                             return CompletableFuture.completedFuture(sessionResponse);
                                                         } else {
                                                             if (!shouldGiveUp) {
-                                                                logger.debug("Failed to fetch Session from CAS, retrying...");
+                                                                logger.info("Failed to fetch Session from CAS, retrying...");
                                                                 return fetchCasSession(tryNumber + 1);
                                                             } else {
                                                                 return CompletableFuture.failedFuture(new RuntimeException("Failed to fetch Session from CAS."));
@@ -150,14 +158,14 @@ public class CasHttpClient {
                                             if (!shouldGiveUp) {
                                                 return fetchCasSession(tryNumber + 1);
                                             } else {
-                                                logger.debug("Failed to create Service ticket from CAS response, retrying...");
+                                                logger.info("Failed to create Service ticket from CAS response, retrying...");
                                                 return CompletableFuture.failedFuture(new RuntimeException("Failed to create Service ticket from CAS response, " + e));
                                             }
                                         }
 
                                     } else {
                                         if (!shouldGiveUp) {
-                                            logger.debug("Invalid service ticket from CAS, retrying...");
+                                            logger.info("Invalid service ticket from CAS, retrying...");
                                             return fetchCasSession(tryNumber + 1);
                                         } else {
                                             return CompletableFuture.failedFuture(new RuntimeException("Invalid service ticket from CAS"));
@@ -166,7 +174,7 @@ public class CasHttpClient {
                                 });
                     } else {
                         if (!shouldGiveUp) {
-                            logger.debug("Invalid ticket granting ticket from CAS, retrying...");
+                            logger.info("Invalid ticket granting ticket from CAS, retrying...");
                             return fetchCasSession(tryNumber + 1);
                         } else {
                             return CompletableFuture.failedFuture(new RuntimeException("Invalid ticket granting ticket from CAS"));
@@ -209,7 +217,7 @@ public class CasHttpClient {
                                 }
                             });
                         } else if (response.code() == 401) {
-                            logger.debug("response code 401, fetching cas session");
+                            logger.info("response code 401, fetching cas session");
                             return fetchCasSession().thenCompose((casResponse) -> {
                                 try {
                                     String setSessionCookie = CasUtils.getCookie(casResponse, new ServiceTicket(this.service, casResponse.body().string()), this.cookieName).value();
@@ -235,7 +243,6 @@ public class CasHttpClient {
                         }
                     });
         } else {
-            logger.debug("current token not valid");
             return fetchCasSession().thenCompose((response) -> {
                 try {
                     ServiceTicket serviceTicket = new ServiceTicket(this.service, response.body().string());
@@ -249,7 +256,7 @@ public class CasHttpClient {
                     }
                 } catch (Exception e) {
                     if (!shouldGiveUp) {
-                        logger.debug("error fetching CAS session, retrying...");
+                        logger.info("error fetching CAS session, retrying...");
                         return fetchCasSession(tryNumber + 1);
                     }
                     return CompletableFuture.failedFuture(new RuntimeException("Error getting cookie from response.", e));

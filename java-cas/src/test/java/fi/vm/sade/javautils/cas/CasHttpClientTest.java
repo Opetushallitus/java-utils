@@ -33,7 +33,9 @@ public class CasHttpClientTest {
         this.mockWebServer = new MockWebServer();
         this.authenticationTimeout = Duration.ofSeconds(60);
         this.client = new OkHttpClient();
-        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, mockWebServer.url("/") + TEST_SERVICE, mockWebServer.url("/") + "cas/tickets", "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
+        String serverUrl = mockWebServer.url("/").toString();
+        String casServerUrl = serverUrl.replace(serverUrl.substring(serverUrl.length()-1), "");
+        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, mockWebServer.url("/") + TEST_SERVICE, casServerUrl , "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
     }
 
     @After
@@ -51,7 +53,7 @@ public class CasHttpClientTest {
 
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                if (request.getPath().contains("/cas/")) {
+                if (request.getPath().contains("/v1/")) {
                     callCount++;
                     if (callCount == 1) {
                         return new MockResponse()
@@ -113,7 +115,7 @@ public class CasHttpClientTest {
 
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                if (request.getPath().contains("/cas/")) {
+                if (request.getPath().contains("/v1/")) {
                     return new MockResponse()
                             .addHeader("Location", mockWebServer.url("/") + "tickets")
                             .setResponseCode(201);
