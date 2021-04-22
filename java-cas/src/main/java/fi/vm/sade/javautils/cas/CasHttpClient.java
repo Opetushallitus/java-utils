@@ -27,6 +27,7 @@ public class CasHttpClient {
     private final String cookieName;
     private final String service;
     private final String casUrl;
+    private final String securityUriSuffix;
     private final String username;
     private final String password;
     private final Duration sessionTimeout;
@@ -40,6 +41,7 @@ public class CasHttpClient {
                          String cookieName,
                          String service,
                          String casUrl,
+                         String securityUriSuffix,
                          String username,
                          String password,
                          Duration sessionTimeout) {
@@ -47,6 +49,7 @@ public class CasHttpClient {
         this.callerId = callerId;
         this.cookieName = cookieName;
         this.service = service;
+        this.securityUriSuffix = securityUriSuffix;
         this.casUrl = casUrl;
         this.username = username;
         this.password = password;
@@ -113,7 +116,7 @@ public class CasHttpClient {
                                 .build();
 
                         Request requestServiceTicket = new Request.Builder()
-                                .url(ticketGrantingTicketUrl)
+                                .url(ticketGrantingTicketUrl + this.securityUriSuffix)
                                 .post(serviceTicketRequestBody)
                                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                                 .addHeader("Caller-Id", this.callerId)

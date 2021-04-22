@@ -27,6 +27,7 @@ public class CasHttpClientTest {
     private static final String COOKIENAME = "JSESSIONID";
     private static final String VALID_TICKET = "it-ankan-tiketti";
     private static final String TEST_SERVICE = "test-service";
+    private static final String SECURITY_URI_SUFFIX = "j_spring_cas_security_check";
 
     @Before
     public void init() {
@@ -35,7 +36,7 @@ public class CasHttpClientTest {
         this.client = new OkHttpClient();
         String serverUrl = mockWebServer.url("/").toString();
         String casServerUrl = serverUrl.replace(serverUrl.substring(serverUrl.length()-1), "");
-        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, mockWebServer.url("/") + TEST_SERVICE, casServerUrl , "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
+        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, mockWebServer.url("/") + TEST_SERVICE, casServerUrl , SECURITY_URI_SUFFIX, "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
     }
 
     @After
