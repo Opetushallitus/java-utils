@@ -26,7 +26,7 @@ public class CasHttpClientTest {
     private static final String CSRF_VALUE = "CSRF";
     private static final String COOKIENAME = "JSESSIONID";
     private static final String VALID_TICKET = "it-ankan-tiketti";
-    private static final String TEST_SERVICE = "test-service";
+    private static final String TEST_SERVICE = "/test-service";
     private static final String SECURITY_URI_SUFFIX = "j_spring_cas_security_check";
 
     @Before
@@ -34,9 +34,8 @@ public class CasHttpClientTest {
         this.mockWebServer = new MockWebServer();
         this.authenticationTimeout = Duration.ofSeconds(60);
         this.client = new OkHttpClient();
-        String serverUrl = mockWebServer.url("/").toString();
-        String casServerUrl = serverUrl.replace(serverUrl.substring(serverUrl.length()-1), "");
-        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, mockWebServer.url("/") + TEST_SERVICE, casServerUrl , SECURITY_URI_SUFFIX, "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
+        String casServerUrl = mockWebServer.url("/") + "cas";
+        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, TEST_SERVICE, casServerUrl , SECURITY_URI_SUFFIX, "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
     }
 
     @After
@@ -54,7 +53,7 @@ public class CasHttpClientTest {
 
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                if (request.getPath().contains("/v1/")) {
+                if (request.getPath().contains("/v1/tickets")) {
                     callCount++;
                     if (callCount == 1) {
                         return new MockResponse()
@@ -77,7 +76,7 @@ public class CasHttpClientTest {
                             .setResponseCode(200);
                 } else if (request.getRequestUrl().toString().contains("?ticket")) {
                     callCount++;
-                    if (callCount == 6) {
+                    if (callCount == 5) {
                         return new MockResponse()
                                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                                 .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
@@ -116,27 +115,32 @@ public class CasHttpClientTest {
 
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
-                if (request.getPath().contains("/v1/")) {
+                System.out.println(request.getPath());
+                if (request.getPath().contains("/v1/tickets")) {
+                    System.out.println(1);
                     return new MockResponse()
                             .addHeader("Location", mockWebServer.url("/") + "tickets")
                             .setResponseCode(201);
 
                 } else if (request.getPath().contains("tickets") && request.getMethod().equals("POST")) {
+                    System.out.println(2);
                     return new MockResponse()
                             .setBody(VALID_TICKET)
                             .setResponseCode(200);
                 } else if (request.getRequestUrl().toString().contains("?ticket")) {
+                    System.out.println(3);
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service", "123456789"))
-                            .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
+                            .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
                             .setResponseCode(200);
                 } else {
+                    System.out.println(4);
                     return new MockResponse()
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                            .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service", "123456789"))
-                            .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service", "WHUTEVAMAN"))
-                            .setResponseCode(200);
+                            .addHeader("set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                            .addHeader("set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                            .setResponseCode(404);
                 }
             }
         };
@@ -148,7 +152,13 @@ public class CasHttpClientTest {
                 .build();
 
         Response completedResponse = this.casHttpClient.call(request).get();
-        List<String> cookielist = completedResponse.headers().values("Set-Cookie");
-        assertEquals(true, cookielist.contains("JSESSIONID=123456789; Path=/test-service"));
+        List<String> cookielist = completedResponse.headers().values("set-Cookie");
+        assertEquals(true, cookielist.contains("JSESSIONID=123456789; Path=/test-service/"));
+
+        completedResponse = this.casHttpClient.callBlocking(request);
+        cookielist = completedResponse.headers().values("set-Cookie");
+        assertEquals(true, cookielist.contains("JSESSIONID=123456789; Path=/test-service/"));
     }
+
+    //TODO: test with valid token...
 }

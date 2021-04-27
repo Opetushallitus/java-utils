@@ -66,7 +66,7 @@ public class ApplicationSession {
 
         try {
             Response response = this.client.newCall(request).execute();
-            return new SessionToken(serviceTicket, CasUtils.getCookie(response, serviceTicket, this.cookieName));
+            return new SessionToken(serviceTicket, CasUtils.getCookie(response, serviceTicket.getLoginUrl(), this.cookieName));
         } catch (Exception e) {
             throw new IllegalStateException(String.format(
                     "%s: Failed to establish session",
