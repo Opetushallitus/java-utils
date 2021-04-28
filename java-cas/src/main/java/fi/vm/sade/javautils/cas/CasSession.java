@@ -64,7 +64,7 @@ public class CasSession {
                             .add("username", URLEncoder.encode(this.username, StandardCharsets.UTF_8))
                             .add("password", URLEncoder.encode(this.password, StandardCharsets.UTF_8))
                             .build();
-                    //TODO timeouts!
+                    //Todo timeouts!
 
                     Request request = new Request.Builder()
                             .url(this.ticketsUrl)
@@ -72,7 +72,6 @@ public class CasSession {
                             .addHeader("Content-Type", "application/x-www-form-urlencoded")
                             .addHeader("Caller-Id", this.callerId)
                             .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                            .header("Connection", "close")
                             .build();
 
                     try (Response response = this.client.newCall(request).execute()) {
@@ -107,7 +106,6 @@ public class CasSession {
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Caller-Id", this.callerId)
                 .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                .header("Connection", "close")
                 .build();
         //TODO timeouts!
 

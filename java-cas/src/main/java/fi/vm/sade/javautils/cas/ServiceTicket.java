@@ -1,7 +1,5 @@
 package fi.vm.sade.javautils.cas;
 
-import java.net.URI;
-
 public class ServiceTicket {
     public final String service;
     public final String serviceTicket;

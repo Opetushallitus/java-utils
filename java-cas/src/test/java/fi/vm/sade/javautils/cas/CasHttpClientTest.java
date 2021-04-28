@@ -7,7 +7,10 @@ import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
@@ -35,7 +38,7 @@ public class CasHttpClientTest {
         this.authenticationTimeout = Duration.ofSeconds(60);
         this.client = new OkHttpClient();
         String casServerUrl = mockWebServer.url("/") + "cas";
-        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, TEST_SERVICE, casServerUrl , SECURITY_URI_SUFFIX, "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
+        this.casHttpClient = new CasHttpClient(this.client, "Caller-id", COOKIENAME, TEST_SERVICE, casServerUrl, SECURITY_URI_SUFFIX, "It-Ankka", "neverstopthemadness", this.authenticationTimeout);
     }
 
     @After
