@@ -7,6 +7,7 @@ import org.asynchttpclient.*;
 import java.util.Date;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -151,4 +152,11 @@ public class CasClient {
           sessionRequest(currentSession).getSessionProcess().thenCompose(newSession -> executeRequestWithSession(newSession, request)));
   }
 
+  public Response executeBlocking(Request request) throws ExecutionException {
+    try {
+      return execute(request).get();
+    } catch (Exception e) {
+      throw new ExecutionException("Failed to execute blocking request: " + request.getUrl(), e);
+    }
+  }
 }
