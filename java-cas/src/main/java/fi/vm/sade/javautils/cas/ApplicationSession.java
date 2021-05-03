@@ -1,31 +1,31 @@
 package fi.vm.sade.javautils.cas;
 
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.Request;
+import org.asynchttpclient.RequestBuilder;
+import org.asynchttpclient.Response;
+
 import java.net.CookieManager;
 import java.net.HttpCookie;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 public class ApplicationSession {
-
     private static final String CSRF_VALUE = "CSRF";
 
-    private final HttpClient client;
+    private final AsyncHttpClient client;
     private final CookieManager cookieManager;
     private final String callerId;
-    private final Duration authenticationTimeout;
+    private final int authenticationTimeout;
     private final CasSession casSession;
     private final String service;
     private final String cookieName;
     private CompletableFuture<SessionToken> sessionToken;
 
-    public ApplicationSession(HttpClient client,
+    public ApplicationSession(AsyncHttpClient client,
                               CookieManager cookieManager,
                               String callerId,
-                              Duration authenticationTimeout,
+                              int authenticationTimeout,
                               CasSession casSession,
                               String service,
                               String cookieName) {
@@ -59,36 +59,37 @@ public class ApplicationSession {
     }
 
     private CompletableFuture<SessionToken> requestSession(ServiceTicket serviceTicket) {
-        HttpRequest request = HttpRequest.newBuilder(serviceTicket.getLoginUrl())
-                .GET()
-                .header("Caller-Id", this.callerId)
-                .header("CSRF", CSRF_VALUE)
-                .header("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
-                .timeout(this.authenticationTimeout)
+        Request request = new RequestBuilder()
+                .setUrl(serviceTicket.getLoginUrl().toString())
+                .setMethod("GET")
+                .addHeader("Caller-Id", this.callerId)
+                .addHeader("CSRF", CSRF_VALUE)
+                .addHeader("Cookie", String.format("CSRF=%s;", CSRF_VALUE))
+                .setRequestTimeout(this.authenticationTimeout)
                 .build();
-        return this.client.sendAsync(request, HttpResponse.BodyHandlers.discarding())
+        return this.client.executeRequest(request).toCompletableFuture()
                 .handle((response, e) -> {
                     if (e != null) {
                         throw new IllegalStateException(String.format(
                                 "%s: Failed to establish session",
-                                request.uri().toString()
+                                request.getUrl()
                         ), e);
                     }
                     return new SessionToken(serviceTicket, this.getCookie(response, serviceTicket));
                 });
     }
 
-    private HttpCookie getCookie(HttpResponse<Void> response, ServiceTicket serviceTicket) {
+    private HttpCookie getCookie(Response response, ServiceTicket serviceTicket) {
         URI loginUrl = serviceTicket.getLoginUrl();
         return this.cookieManager.getCookieStore().get(loginUrl).stream()
                 .filter(cookie -> loginUrl.getPath().startsWith(cookie.getPath()) && this.cookieName.equals(cookie.getName()))
                 .findAny()
                 .orElseThrow(() -> new IllegalStateException(String.format(
                         "%s %d: Failed to establish session. No cookie %s set. Headers: %s",
-                        response.uri().toString(),
-                        response.statusCode(),
+                        response.getUri().toString(),
+                        response.getStatusCode(),
                         this.cookieName,
-                        response.headers()
-                    )));
+                        response.getHeaders()
+                )));
     }
 }

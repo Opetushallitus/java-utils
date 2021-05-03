@@ -42,6 +42,7 @@ import static org.asynchttpclient.Dsl.asyncHttpClient;
 
     casClient.execute(req).thenApply(response -> System.out.println(response.getStatusCode()));
  */
+
 public class CasClient {
     private static final Logger logger = LoggerFactory.getLogger(CasClient.class);
     private final CasConfig config;
@@ -141,9 +142,9 @@ public class CasClient {
                 if (sessionStore.compareAndSet(currentSessionProcess, new CasSessionFetchProcess(
                         CompletableFuture.completedFuture(
                                 newSessionFromToken(session.getSessionCookie()))))) {
-                    //System.out.println("Updated current session with more time");
+                    logger.info("Updated current session with more time");
                 } else {
-                    //System.out.println("Tried to update more time to current session but some other thread was faster");
+                    logger.info("Tried to update more time to current session but some other thread was faster");
                 }
             }
             return response;
@@ -177,9 +178,7 @@ public class CasClient {
     }
 
     public CompletableFuture<String> validateServiceTicketWithVirkailijaUsername(String service, String ticket) {
-
         logger.info("VALIDATING TICKET: " + ticket + " , service: " + service);
-
         Request req = withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(config.getCasUrl() + "/serviceValidate?ticket=" + ticket + "&service=" + service)
                 .addQueryParam("ticket", ticket)
