@@ -78,6 +78,7 @@ public class CasClient {
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
                 CasSession session = newSessionFromToken(cookie.value());
+                logger.info((String.format("Got CAS ticket!")));
                 return session;
             }
         }
@@ -102,6 +103,7 @@ public class CasClient {
                 config.getServiceUrl(),
                 config.getServiceUrlSuffix()
         );
+        logger.info((String.format("TGT request to url: %s", tgtReq.getUrl())));
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
                 .toCompletableFuture().thenCompose(response -> {
 
@@ -110,6 +112,7 @@ public class CasClient {
                             .setMethod("POST")
                             .addFormParam("service", serviceUrl)
                             .build());
+                    logger.info((String.format("service ticket request to url: %s", req.getUrl())));
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
                 }).thenCompose(response -> {
 
@@ -118,6 +121,7 @@ public class CasClient {
                             .setMethod("GET")
                             .addQueryParam("ticket", ticketFromResponse(response))
                             .build());
+                    logger.info((String.format("ticket request to url: %s", req.getUrl())));
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
                 }).thenApply(this::sessionFromResponse);
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);

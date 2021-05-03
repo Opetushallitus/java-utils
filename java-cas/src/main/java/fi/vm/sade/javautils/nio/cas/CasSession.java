@@ -1,8 +1,13 @@
 package fi.vm.sade.javautils.nio.cas;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Date;
 
 public class CasSession {
+  private static final Logger logger = LoggerFactory.getLogger(CasSession.class);
+
   private final String sessionCookie;
   private final Date validUntil;
 
@@ -13,7 +18,7 @@ public class CasSession {
 
   public boolean isValid() {
     final boolean valid = new Date().before(validUntil);
-    // System.out.println("Checking if '" + sessionCookie + "' is valid? Valid = " + valid);
+    logger.info("Checking if '" + sessionCookie + "' is valid? Valid = " + valid);
     return valid;
   }
 
