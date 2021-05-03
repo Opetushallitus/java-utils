@@ -28,4 +28,4 @@ deploy:
   script: "mvn deploy -DskipTests --settings ci-tools/common/maven-settings.xml"
   skip_cleanup: true
   on:
-    branch: OY-2817__kirjasto-paivitykset
+    branch: OY-2817_kirjasto-paivitykset_apache_async_http
