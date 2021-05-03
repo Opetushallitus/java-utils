@@ -15,6 +15,7 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -189,11 +190,11 @@ public class CasClient {
     }
 
     public String validateServiceTicketWithVirkailijaUsernameBlocking(String service, String ticket) throws ExecutionException {
-      try {
-        return validateServiceTicketWithVirkailijaUsername(service, ticket).get();
-      } catch (Exception e) {
-        throw new ExecutionException(String.format("Failed to validate service ticket with virkailija username, service: %s , ticket: &s", service, ticket), e);
-      }
+        try {
+            return validateServiceTicketWithVirkailijaUsername(service, ticket).get();
+        } catch (Exception e) {
+            throw new ExecutionException(String.format("Failed to validate service ticket with virkailija username, service: %s , ticket: &s", service, ticket), e);
+        }
     }
 
     private String getUsernameFromResponse(Response response) {
@@ -205,6 +206,47 @@ public class CasClient {
             return document.getElementsByTagName("cas:user").item(0).getTextContent();
         } catch (Exception e) {
             throw new RuntimeException("CAS service ticket validation failed: ", e);
+        }
+    }
+
+    public CompletableFuture<HashMap<String, String>> validateServiceTicketWithOppijaAttributes(String service, String ticket) throws ExecutionException {
+        Request req = withCsrfAndCallerId(new RequestBuilder()
+                .setUrl(config.getCasUrl() + "/serviceValidate?ticket=" + ticket + "&service=" + service)
+                .addQueryParam("ticket", ticket)
+                .addQueryParam("service", service)
+                .setMethod("GET")
+                .build());
+        return asyncHttpClient.executeRequest(req).toCompletableFuture().thenApply(this::getOppijaAttributesFromResponse);
+    }
+
+    private HashMap<String, String> getOppijaAttributesFromResponse(Response response) {
+        HashMap<String, String> oppijaAttributes = new HashMap<String, String>();
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document document = builder.parse(new InputSource(new StringReader(response.getResponseBody())));
+
+            oppijaAttributes.put("clientName", document.getElementsByTagName("cas:clientName").item(0).getTextContent());
+            oppijaAttributes.put("displayName", document.getElementsByTagName("cas:displayName").item(0).getTextContent());
+            oppijaAttributes.put("givenName", document.getElementsByTagName("cas:givenName").item(0).getTextContent());
+            oppijaAttributes.put("personOid", document.getElementsByTagName("cas:personOid").item(0).getTextContent());
+            oppijaAttributes.put("personName", document.getElementsByTagName("cas:personName").item(0).getTextContent());
+            oppijaAttributes.put("firstName", document.getElementsByTagName("cas:firstName").item(0).getTextContent());
+            oppijaAttributes.put("nationalIdentificationNumber", document.getElementsByTagName("cas:nationalIdentificationNumber").item(0).getTextContent());
+            oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
+            oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
+
+            return oppijaAttributes;
+        } catch (Exception e) {
+            throw new RuntimeException("CAS service ticket validation failed for oppija attributes: ", e);
+        }
+    }
+
+    public String validateServiceTicketWithOppijaAttributesBlocking(String service, String ticket) throws ExecutionException {
+        try {
+            return validateServiceTicketWithVirkailijaUsername(service, ticket).get();
+        } catch (Exception e) {
+            throw new ExecutionException(String.format("Failed to validate service ticket with oppija attributes, service: %s , ticket: &s", service, ticket), e);
         }
     }
 }
