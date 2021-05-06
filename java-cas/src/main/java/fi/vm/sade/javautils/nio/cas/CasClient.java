@@ -58,6 +58,8 @@ public class CasClient {
 
     private String tgtLocationFromResponse(Response casResponse) {
         if (201 == casResponse.getStatusCode()) {
+            logger.error("got tgt response:" + casResponse.toString());
+            logger.error("got tgt response headers:" + casResponse.getHeaders().toString());
             return casResponse.getHeader("Location");
         } else {
             throw new RuntimeException("Couldn't get TGT ticket!");
@@ -106,9 +108,11 @@ public class CasClient {
                 config.getServiceUrlSuffix()
         );
         logger.info((String.format("TGT request to url: %s", tgtReq.getUrl())));
+        logger.info("cas config: " + config.toString());
+        logger.info("service url: " + serviceUrl);
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
                 .toCompletableFuture().thenCompose(response -> {
-
+logger.info("tgt response: " + response.toString());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
                             .setUrl(tgtLocationFromResponse(response))
                             .setMethod("POST")
