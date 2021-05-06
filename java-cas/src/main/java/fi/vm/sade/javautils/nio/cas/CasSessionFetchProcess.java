@@ -33,6 +33,6 @@ public class CasSessionFetchProcess {
   }
 
   public static CasSessionFetchProcess emptySessionProcess() {
-    return new CasSessionFetchProcess(CompletableFuture.completedFuture(new CasSession("", new Date())));
+    return new CasSessionFetchProcess(CompletableFuture.completedFuture(new CasSession("","", new Date())));
   }
 }

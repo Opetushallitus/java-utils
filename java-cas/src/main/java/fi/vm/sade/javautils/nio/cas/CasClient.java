@@ -73,7 +73,7 @@ public class CasClient {
     }
 
     private CasSession newSessionFromToken(String token) {
-        return new CasSession(token, new Date(System.currentTimeMillis() + estimatedValidToken));
+        return new CasSession(config.getjSessionName(), token, new Date(System.currentTimeMillis() + estimatedValidToken));
     }
 
     private CasSession sessionFromResponse(Response casResponse) {
@@ -159,6 +159,15 @@ public class CasClient {
 
     private CompletableFuture<Response> executeRequestWithReusedSession(CasSessionFetchProcess currentSessionProcess, CasSession session, Request request) {
         return executeRequestWithSession(session, request).thenApply(onSuccessIncreaseSessionTime(currentSessionProcess, session));
+    }
+
+    public CompletableFuture<CasSession> getSession() {
+        final CasSessionFetchProcess currentSession = sessionStore.get();
+
+        return currentSession.getSessionProcess()
+                .thenCompose(session ->
+                        session.isValid() ? currentSession.getSessionProcess() :
+                                sessionRequest(currentSession).getSessionProcess());
     }
 
     public CompletableFuture<Response> execute(Request request) {
