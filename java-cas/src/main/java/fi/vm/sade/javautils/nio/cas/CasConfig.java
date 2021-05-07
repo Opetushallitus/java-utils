@@ -9,8 +9,9 @@ public class CasConfig {
   private final String callerId;
   private final String jSessionName;
   private final String serviceUrlSuffix;
+  private final String sessionUrl;
 
-  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix) {
+  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String sessionUrl) {
     this.username = username;
     this.password = password;
     this.casUrl = casUrl;
@@ -19,18 +20,19 @@ public class CasConfig {
     this.callerId = callerId;
     this.jSessionName = jSessionName;
     this.serviceUrlSuffix = serviceUrlSuffix;
+    this.sessionUrl = sessionUrl;
   }
 
   public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "ring-session";
     final String serviceUrlSuffix = "/auth/cas";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
   }
 
   public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "JSESSIONID";
     final String serviceUrlSuffix = "/j_spring_cas_security_check";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
   }
 
   public String getjSessionName() {
@@ -53,9 +55,7 @@ public class CasConfig {
     return casUrl;
   }
 
-  public String getServiceUrl() {
-    return serviceUrl;
-  }
+  public String getServiceUrl() { return serviceUrl; }
 
   public String getCallerId() {
     return callerId;
@@ -63,5 +63,9 @@ public class CasConfig {
 
   public String getCsrf() {
     return csrf;
+  }
+
+  public String getSessionUrl() {
+    return sessionUrl == null ? serviceUrl + getServiceUrlSuffix() : sessionUrl;
   }
 }

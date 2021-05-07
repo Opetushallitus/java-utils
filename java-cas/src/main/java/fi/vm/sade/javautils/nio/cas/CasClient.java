@@ -82,6 +82,7 @@ public class CasClient {
         logger.info("ticket response: " + casResponse.toString());
         logger.info("ticket response status: " + casResponse.getStatusCode());
         logger.info("ticket response headers: " + casResponse.getHeaders());
+        logger.info("cas response cookies:" + casResponse.getCookies().toString());
         logger.info("config jsessionname: " + config.getjSessionName());
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
@@ -126,9 +127,9 @@ public class CasClient {
                     logger.info((String.format("service ticket request to url: %s", req.getUrl())));
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
                 }).thenCompose(response -> {
-
+                    logger.info("st response: " + response.toString());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
-                            .setUrl(serviceUrl)
+                            .setUrl(config.getSessionUrl())
                             .setMethod("GET")
                             .addQueryParam("ticket", ticketFromResponse(response))
                             .build());
