@@ -79,6 +79,10 @@ public class CasClient {
     }
 
     private CasSession sessionFromResponse(Response casResponse) {
+        logger.info("ticket response: " + casResponse.toString());
+        logger.info("ticket response status: " + casResponse.getStatusCode());
+        logger.info("ticket response headers: " + casResponse.getHeaders());
+        logger.info("config jsessionname: " + config.getjSessionName());
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
                 CasSession session = newSessionFromToken(cookie.value());
@@ -92,6 +96,7 @@ public class CasClient {
     private Request withCsrfAndCallerId(Request req) {
         return req.toBuilder()
                 .setHeader("Caller-Id", config.getCallerId())
+                .setHeader("CSRF", config.getCsrf())
                 .addOrReplaceCookie(new DefaultCookie("CSRF", config.getCsrf()))
                 .build();
     }
@@ -112,7 +117,7 @@ public class CasClient {
         logger.info("service url: " + serviceUrl);
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
                 .toCompletableFuture().thenCompose(response -> {
-logger.info("tgt response: " + response.toString());
+                    logger.info("tgt response: " + response.toString());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
                             .setUrl(tgtLocationFromResponse(response))
                             .setMethod("POST")

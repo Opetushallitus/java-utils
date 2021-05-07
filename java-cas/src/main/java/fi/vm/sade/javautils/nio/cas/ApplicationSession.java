@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.CompletableFuture;
 
 public class ApplicationSession {
-    private static final Logger logger = LoggerFactory.getLogger(fi.vm.sade.javautils.nio.cas.ApplicationSession.class);
+    private static final Logger logger = LoggerFactory.getLogger(ApplicationSession.class);
 
     private final CasClient casClient;
     private final CasConfig casConfig;
