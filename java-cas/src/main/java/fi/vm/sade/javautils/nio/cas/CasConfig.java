@@ -23,6 +23,10 @@ public class CasConfig {
     this.sessionUrl = sessionUrl;
   }
 
+  public static CasConfig CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix) {
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
+  }
+
   public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "ring-session";
     final String serviceUrlSuffix = "/auth/cas";
