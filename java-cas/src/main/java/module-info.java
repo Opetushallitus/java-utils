@@ -4,5 +4,6 @@ module fi.vm.sade.javautils.cas {
     requires io.netty.codec.http;
     requires slf4j.api;
     requires java.xml;
+    requires org.apache.commons.lang3;
     exports fi.vm.sade.javautils.cas;
 }

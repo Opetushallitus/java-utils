@@ -2,10 +2,7 @@ package fi.vm.sade.javautils.nio.cas;
 
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
-import org.asynchttpclient.AsyncHttpClient;
-import org.asynchttpclient.Request;
-import org.asynchttpclient.RequestBuilder;
-import org.asynchttpclient.Response;
+import org.asynchttpclient.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -17,14 +14,13 @@ import java.io.StringReader;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static fi.vm.sade.javautils.nio.cas.CasSessionFetchProcess.emptySessionProcess;
 import static org.asynchttpclient.Dsl.asyncHttpClient;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 
 /*
  Usage example:
@@ -53,7 +49,16 @@ public class CasClient {
 
     public CasClient(CasConfig config) {
         this.config = config;
-        this.asyncHttpClient = asyncHttpClient();
+      ThreadFactory factory = new BasicThreadFactory.Builder()
+        .namingPattern("async-cas-client-thread-%d")
+        .daemon(true)
+        //.priority(Thread.MAX_PRIORITY)
+        .priority(Thread.NORM_PRIORITY)
+        .build();
+
+      this.asyncHttpClient = asyncHttpClient(new DefaultAsyncHttpClientConfig.Builder()
+          .setThreadFactory(factory)
+          .build());
     }
 
     private String tgtLocationFromResponse(Response casResponse) {
