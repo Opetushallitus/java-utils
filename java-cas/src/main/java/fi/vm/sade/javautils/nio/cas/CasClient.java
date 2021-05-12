@@ -211,15 +211,23 @@ public class CasClient {
         }
     }
 
-    public CompletableFuture<String> validateServiceTicketWithVirkailijaUsername(String service, String ticket) {
-        logger.info("VALIDATING TICKET: " + ticket + " , service: " + service);
+    private CompletableFuture<Response> fetchValidationResponse(String service, String ticket) {
+        logger.info("Fetching serviceValidate: " + ticket + " , service: " + service);
         Request req = withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(config.getCasUrl() + "/serviceValidate?ticket=" + ticket + "&service=" + service)
                 .addQueryParam("ticket", ticket)
                 .addQueryParam("service", service)
                 .setMethod("GET")
                 .build());
-        return asyncHttpClient.executeRequest(req).toCompletableFuture().thenApply(this::getUsernameFromResponse);
+        return asyncHttpClient.executeRequest(req).toCompletableFuture();
+    }
+
+    public CompletableFuture<String> validateServiceTicketWithVirkailijaUsername(String service, String ticket) {
+        return fetchValidationResponse(service, ticket).thenApply(this::getUsernameFromResponse);
+    }
+
+    public CompletableFuture<HashMap<String, String>> validateServiceTicketWithOppijaAttributes(String service, String ticket) throws ExecutionException {
+        return fetchValidationResponse(service, ticket).thenApply(this::getOppijaAttributesFromResponse);
     }
 
     public String validateServiceTicketWithVirkailijaUsernameBlocking(String service, String ticket) throws ExecutionException {
@@ -242,15 +250,7 @@ public class CasClient {
         }
     }
 
-    public CompletableFuture<HashMap<String, String>> validateServiceTicketWithOppijaAttributes(String service, String ticket) throws ExecutionException {
-        Request req = withCsrfAndCallerId(new RequestBuilder()
-                .setUrl(config.getCasUrl() + "/serviceValidate?ticket=" + ticket + "&service=" + service)
-                .addQueryParam("ticket", ticket)
-                .addQueryParam("service", service)
-                .setMethod("GET")
-                .build());
-        return asyncHttpClient.executeRequest(req).toCompletableFuture().thenApply(this::getOppijaAttributesFromResponse);
-    }
+
 
     private HashMap<String, String> getOppijaAttributesFromResponse(Response response) {
         HashMap<String, String> oppijaAttributes = new HashMap<String, String>();
@@ -275,11 +275,11 @@ public class CasClient {
         }
     }
 
-//    public String validateServiceTicketWithOppijaAttributesBlocking(String service, String ticket) throws ExecutionException {
-//        try {
-//            return validateServiceTicketWithOppijaAttributes(service, ticket).get();
-//        } catch (Exception e) {
-//            throw new ExecutionException(String.format("Failed to validate service ticket with oppija attributes, service: %s , ticket: &s", service, ticket), e);
-//        }
-//    }
+    public HashMap<String, String> validateServiceTicketWithOppijaAttributesBlocking(String service, String ticket) throws ExecutionException {
+        try {
+            return validateServiceTicketWithOppijaAttributes(service, ticket).get();
+        } catch (Exception e) {
+            throw new ExecutionException(String.format("Failed to validate service ticket with oppija attributes, service: %s , ticket: &s", service, ticket), e);
+        }
+    }
 }
