@@ -2,6 +2,7 @@ package fi.vm.sade.javautils.nio.cas;
 
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.asynchttpclient.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,13 +15,15 @@ import java.io.StringReader;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static fi.vm.sade.javautils.nio.cas.CasSessionFetchProcess.emptySessionProcess;
 import static org.asynchttpclient.Dsl.asyncHttpClient;
-import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 
 /*
  Usage example:
@@ -49,16 +52,16 @@ public class CasClient {
 
     public CasClient(CasConfig config) {
         this.config = config;
-      ThreadFactory factory = new BasicThreadFactory.Builder()
-        .namingPattern("async-cas-client-thread-%d")
-        .daemon(true)
-        //.priority(Thread.MAX_PRIORITY)
-        .priority(Thread.NORM_PRIORITY)
-        .build();
+        ThreadFactory factory = new BasicThreadFactory.Builder()
+                .namingPattern("async-cas-client-thread-%d")
+                .daemon(true)
+                //.priority(Thread.MAX_PRIORITY)
+                .priority(Thread.NORM_PRIORITY)
+                .build();
 
-      this.asyncHttpClient = asyncHttpClient(new DefaultAsyncHttpClientConfig.Builder()
-          .setThreadFactory(factory)
-          .build());
+        this.asyncHttpClient = asyncHttpClient(new DefaultAsyncHttpClientConfig.Builder()
+                .setThreadFactory(factory)
+                .build());
     }
 
     private String tgtLocationFromResponse(Response casResponse) {
@@ -96,6 +99,7 @@ public class CasClient {
                 return session;
             }
         }
+        logger.error("Cas Response: " + casResponse.toString());
         throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
     }
 
@@ -108,6 +112,7 @@ public class CasClient {
     }
 
     public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
+        logger.info("STARTING TO FETCH SESSION FROM CAS." );
         Request tgtReq = withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(String.format("%s/v1/tickets", config.getCasUrl()))
                 .setMethod("POST")
@@ -119,11 +124,11 @@ public class CasClient {
                 config.getServiceUrlSuffix()
         );
         logger.info((String.format("TGT request to url: %s", tgtReq.getUrl())));
-        logger.info("cas config: " + config.toString());
         logger.info("service url: " + serviceUrl);
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
                 .toCompletableFuture().thenCompose(response -> {
                     logger.info("tgt response: " + response.toString());
+                    logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
                             .setUrl(tgtLocationFromResponse(response))
                             .setMethod("POST")
@@ -133,6 +138,7 @@ public class CasClient {
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
                 }).thenCompose(response -> {
                     logger.info("st response: " + response.toString());
+                    logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
                             .setUrl(config.getSessionUrl())
                             .setMethod("GET")
@@ -140,7 +146,11 @@ public class CasClient {
                             .build());
                     logger.info((String.format("ticket request to url: %s", req.getUrl())));
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
-                }).thenApply(this::sessionFromResponse);
+//                }).thenApply(this::sessionFromResponse);
+                }).thenApply(response -> {
+                    logger.info("CAS RESPONSE CODE ->" + response.getStatusCode());
+                    return sessionFromResponse(response);
+                });
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
 
         if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {
@@ -265,11 +275,11 @@ public class CasClient {
         }
     }
 
-    public String validateServiceTicketWithOppijaAttributesBlocking(String service, String ticket) throws ExecutionException {
-        try {
-            return validateServiceTicketWithVirkailijaUsername(service, ticket).get();
-        } catch (Exception e) {
-            throw new ExecutionException(String.format("Failed to validate service ticket with oppija attributes, service: %s , ticket: &s", service, ticket), e);
-        }
-    }
+//    public String validateServiceTicketWithOppijaAttributesBlocking(String service, String ticket) throws ExecutionException {
+//        try {
+//            return validateServiceTicketWithOppijaAttributes(service, ticket).get();
+//        } catch (Exception e) {
+//            throw new ExecutionException(String.format("Failed to validate service ticket with oppija attributes, service: %s , ticket: &s", service, ticket), e);
+//        }
+//    }
 }
