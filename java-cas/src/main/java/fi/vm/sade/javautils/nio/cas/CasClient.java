@@ -266,8 +266,9 @@ public class CasClient {
             oppijaAttributes.put("personName", document.getElementsByTagName("cas:personName").item(0).getTextContent());
             oppijaAttributes.put("firstName", document.getElementsByTagName("cas:firstName").item(0).getTextContent());
             oppijaAttributes.put("nationalIdentificationNumber", document.getElementsByTagName("cas:nationalIdentificationNumber").item(0).getTextContent());
-            oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
-            oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
+//TODO mites nää
+//            oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
+//            oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
 
             return oppijaAttributes;
         } catch (Exception e) {
