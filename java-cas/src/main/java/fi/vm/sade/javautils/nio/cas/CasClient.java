@@ -66,8 +66,7 @@ public class CasClient {
 
     private String tgtLocationFromResponse(Response casResponse) {
         if (201 == casResponse.getStatusCode()) {
-            logger.error("got tgt response:" + casResponse.toString());
-            logger.error("got tgt response headers:" + casResponse.getHeaders().toString());
+            logger.info("got tgt response:" + casResponse.toString());
             return casResponse.getHeader("Location");
         } else {
             throw new RuntimeException("Couldn't get TGT ticket!");
@@ -88,8 +87,6 @@ public class CasClient {
 
     private CasSession sessionFromResponse(Response casResponse) {
         logger.info("ticket response: " + casResponse.toString());
-        logger.info("ticket response status: " + casResponse.getStatusCode());
-        logger.info("ticket response headers: " + casResponse.getHeaders());
         logger.info("cas response cookies:" + casResponse.getCookies().toString());
         logger.info("config jsessionname: " + config.getjSessionName());
         for (Cookie cookie : casResponse.getCookies()) {
@@ -112,7 +109,7 @@ public class CasClient {
     }
 
     public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
-        logger.info("STARTING TO FETCH SESSION FROM CAS." );
+        logger.info("STARTING TO FETCH SESSION FROM CAS.");
         Request tgtReq = withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(String.format("%s/v1/tickets", config.getCasUrl()))
                 .setMethod("POST")
@@ -127,7 +124,6 @@ public class CasClient {
         logger.info("service url: " + serviceUrl);
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
                 .toCompletableFuture().thenCompose(response -> {
-                    logger.info("tgt response: " + response.toString());
                     logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
                             .setUrl(tgtLocationFromResponse(response))
@@ -187,12 +183,17 @@ public class CasClient {
     }
 
     public CompletableFuture<CasSession> getSession() {
+        logger.info("GETSESSSION CALLED!");
         final CasSessionFetchProcess currentSession = sessionStore.get();
-
+        logger.info("CURRENTSESSION: " + currentSession.toString());
         return currentSession.getSessionProcess()
                 .thenCompose(session ->
-                        session.isValid() ? currentSession.getSessionProcess() :
-                                sessionRequest(currentSession).getSessionProcess());
+                        {
+                            logger.info("is sesssion valid: " + session.isValid());
+                            return session.isValid() ? currentSession.getSessionProcess() :
+                                    sessionRequest(currentSession).getSessionProcess();
+                        }
+                );
     }
 
     public CompletableFuture<Response> execute(Request request) {
@@ -251,7 +252,6 @@ public class CasClient {
     }
 
 
-
     private HashMap<String, String> getOppijaAttributesFromResponse(Response response) {
         HashMap<String, String> oppijaAttributes = new HashMap<String, String>();
         try {
@@ -266,9 +266,11 @@ public class CasClient {
             oppijaAttributes.put("personName", document.getElementsByTagName("cas:personName").item(0).getTextContent());
             oppijaAttributes.put("firstName", document.getElementsByTagName("cas:firstName").item(0).getTextContent());
             oppijaAttributes.put("nationalIdentificationNumber", document.getElementsByTagName("cas:nationalIdentificationNumber").item(0).getTextContent());
-//TODO mites nää
-//            oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
-//            oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
+
+            if (document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").getLength() > 0) {
+                oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
+                oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
+            }
 
             return oppijaAttributes;
         } catch (Exception e) {

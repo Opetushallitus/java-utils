@@ -1,7 +1,11 @@
 package fi.vm.sade.javautils.nio.cas;
 
+import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.asynchttpclient.Request;
+import org.asynchttpclient.RequestBuilder;
 import org.hamcrest.core.IsInstanceOf;
 import org.junit.After;
 import org.junit.Before;
@@ -14,10 +18,14 @@ import java.util.HashMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.junit.Assert.assertEquals;
 
 public class CasClientTest {
     private MockWebServer mockWebServer;
     private CasClient casClient;
+    private static final String CSRF_VALUE = "CSRF";
+    private static final String COOKIENAME = "JSESSIONID";
+    private static final String VALID_TICKET = "it-ankan-tiketti";
 
     @Before
     public void init() {
@@ -25,7 +33,7 @@ public class CasClientTest {
         this.casClient = new CasClient(CasConfig.CasConfig("it-ankka",
                 "neverstopthemadness",
                 mockWebServer.url("/cas").toString(),
-                "test-service",
+                mockWebServer.url("/cas/") + "test-service",
                 "CSRF",
                 "Caller-Id",
                 "JSESSIONID",
@@ -40,6 +48,8 @@ public class CasClientTest {
     @Rule
     public ExpectedException exception = ExpectedException.none();
 
+    String casVirkailijaAttributes = "<cas:serviceResponse><cas:authenticationSuccess><cas:user>it-ankka</cas:user></cas:authenticationSuccess></cas:serviceResponse>";
+    String malformedCasVirkailijaAttributes = "<cas:serviceResponse><cas:authenticationSuccess><cas:ur>it-ankka</cas:user></cas:authenticationSuccess></cas:serviceResponse>";
     String casOppijaAttributes = "<cas:authenticationSuccess>\n" +
             "    <cas:user>suomi.fi#010170-999R</cas:user>\n" +
             "    <cas:attributes>\n" +
@@ -63,6 +73,34 @@ public class CasClientTest {
             "        <cas:longTermAuthenticationRequestTokenUsed>false</cas:longTermAuthenticationRequestTokenUsed>\n" +
             "        <cas:sn>Äyrämö</cas:sn>\n" +
             "        <cas:nationalIdentificationNumber>010170-999R</cas:nationalIdentificationNumber>\n" +
+            "        </cas:attributes>\n" +
+            "</cas:authenticationSuccess>";
+
+    String casOppijaAttributesWithImpersonatorData = "<cas:authenticationSuccess>\n" +
+            "    <cas:user>suomi.fi#010170-999R</cas:user>\n" +
+            "    <cas:attributes>\n" +
+            "        <cas:isFromNewLogin>true</cas:isFromNewLogin>\n" +
+            "        <cas:mail>tero.ayramo@kouluk.com</cas:mail>\n" +
+            "        <cas:authenticationDate>2021-03-02T17:28:00.823527Z[UTC]</cas:authenticationDate>\n" +
+            "        <cas:clientName>suomi.fi</cas:clientName>\n" +
+            "        <cas:displayName>Testi Äyrämö</cas:displayName>\n" +
+            "        <cas:givenName>Testi</cas:givenName>\n" +
+            "        <cas:VakinainenKotimainenLahiosoiteS>Kauppa Puistikko 6 B 15</cas:VakinainenKotimainenLahiosoiteS>\n" +
+            "        <cas:VakinainenKotimainenLahiosoitePostitoimipaikkaS>VAASA</cas:VakinainenKotimainenLahiosoitePostitoimipaikkaS>\n" +
+            "        <cas:cn>Äyrämö Tero Testi</cas:cn>\n" +
+            "        <cas:notBefore>2021-03-02T17:28:00.390Z</cas:notBefore>\n" +
+            "        <cas:personOid>1.2.246.562.24.78873180244</cas:personOid>\n" +
+            "        <cas:personName>Äyrämö Tero Testi</cas:personName>\n" +
+            "        <cas:firstName>Tero Testi</cas:firstName>\n" +
+            "        <cas:VakinainenKotimainenLahiosoitePostinumero>65100</cas:VakinainenKotimainenLahiosoitePostinumero>\n" +
+            "        <cas:KotikuntaKuntanumero>905</cas:KotikuntaKuntanumero>\n" +
+            "        <cas:KotikuntaKuntaS>Vaasa</cas:KotikuntaKuntaS>\n" +
+            "        <cas:notOnOrAfter>2021-03-02T17:33:00.390Z</cas:notOnOrAfter>\n" +
+            "        <cas:longTermAuthenticationRequestTokenUsed>false</cas:longTermAuthenticationRequestTokenUsed>\n" +
+            "        <cas:sn>Äyrämö</cas:sn>\n" +
+            "        <cas:nationalIdentificationNumber>010170-999R</cas:nationalIdentificationNumber>\n" +
+            "        <cas:impersonatorNationalIdentificationNumber>010170-998R</cas:impersonatorNationalIdentificationNumber>\n" +
+            "        <cas:impersonatorDisplayName>Faija Roger Äyrämö</cas:impersonatorDisplayName>\n" +
             "        </cas:attributes>\n" +
             "</cas:authenticationSuccess>";
 
@@ -95,19 +133,99 @@ public class CasClientTest {
     @Test
     public void shouldParseOppijaAttributesFromXMLSuccessfully() throws ExecutionException {
         mockWebServer.enqueue(new MockResponse().setBody(casOppijaAttributes));
-        HashMap<String, String> oppijaAttributes = casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), "it-ankan-tiketti");
-        System.out.println(oppijaAttributes);
+        HashMap<String, String> oppijaAttributes = casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
+
+        assertEquals(oppijaAttributes.get("personName"), "Äyrämö Tero Testi");
+        assertEquals(oppijaAttributes.get("firstName"), "Tero Testi");
+        assertEquals(oppijaAttributes.get("clientName"), "suomi.fi");
+        assertEquals(oppijaAttributes.get("displayName"), "Testi Äyrämö");
+        assertEquals(oppijaAttributes.get("givenName"), "Testi");
+        assertEquals(oppijaAttributes.get("personOid"), "1.2.246.562.24.78873180244");
+        assertEquals(oppijaAttributes.get("nationalIdentificationNumber"), "010170-999R");
     }
 
-//    @Ignore
     @Test
-    public void shouldThrowExceptionIfMalformedXML() throws ExecutionException {
+    public void shouldParseOppijaAttributesWithImpersonatorDataFromXMLSuccessfully() throws ExecutionException {
+        mockWebServer.enqueue(new MockResponse().setBody(casOppijaAttributesWithImpersonatorData));
+        HashMap<String, String> oppijaAttributes = casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
+
+        assertEquals(oppijaAttributes.get("personName"), "Äyrämö Tero Testi");
+        assertEquals(oppijaAttributes.get("firstName"), "Tero Testi");
+        assertEquals(oppijaAttributes.get("clientName"), "suomi.fi");
+        assertEquals(oppijaAttributes.get("displayName"), "Testi Äyrämö");
+        assertEquals(oppijaAttributes.get("givenName"), "Testi");
+        assertEquals(oppijaAttributes.get("personOid"), "1.2.246.562.24.78873180244");
+        assertEquals(oppijaAttributes.get("nationalIdentificationNumber"), "010170-999R");
+        assertEquals(oppijaAttributes.get("impersonatorNationalIdentificationNumber"), "010170-998R");
+        assertEquals(oppijaAttributes.get("impersonatorDisplayName"), "Faija Roger Äyrämö");
+    }
+
+    @Test
+    public void shouldThrowExceptionOnParseOppijaAttributesIfMalformedXML() throws ExecutionException {
         exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
         exception.expectMessage(startsWith("Failed to validate service ticket with oppija attributes, service:"));
         mockWebServer.enqueue(new MockResponse().setBody(malformedCasOppijaAttributes));
-        HashMap<String, String> oppijaAttributes = casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), "it-ankan-tiketti");
-        System.out.println(oppijaAttributes);
+        casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
     }
 
+    @Test
+    public void shouldParseVirkailijaUsernameFromXMLSuccessfully() throws ExecutionException {
+        mockWebServer.enqueue(new MockResponse().setBody(casVirkailijaAttributes));
+        String virkailijaUsername = casClient.validateServiceTicketWithVirkailijaUsernameBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
+        assertEquals("it-ankka", virkailijaUsername);
+    }
 
+    @Test
+    public void shouldThrowExceptionOnParseVirkailijaUsernameIfMalformedXML() throws ExecutionException {
+        exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
+        exception.expectMessage(startsWith("Failed to validate service ticket with virkailija username, service:"));
+        mockWebServer.enqueue(new MockResponse().setBody(malformedCasVirkailijaAttributes));
+        casClient.validateServiceTicketWithVirkailijaUsernameBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
+    }
+
+    @Test
+    public void shouldReturnValidTicketResponse() throws ExecutionException, InterruptedException {
+        final Dispatcher dispatcher = new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                System.out.println(request.getPath());
+                if (request.getPath().contains("/v1/tickets")) {
+                    System.out.println(1);
+                    return new MockResponse()
+                            .addHeader("Location", mockWebServer.url("/") + "tickets")
+                            .setResponseCode(201);
+                } else if (request.getPath().contains("tickets") && request.getMethod().equals("POST")) {
+                    return new MockResponse()
+                            .setBody(VALID_TICKET)
+                            .setResponseCode(200);
+                } else if (request.getRequestUrl().toString().contains("?ticket")) {
+                    return new MockResponse()
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                            .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                            .setResponseCode(200);
+                } else {
+                    return new MockResponse()
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .setResponseCode(200);
+                }
+            }
+        };
+
+        mockWebServer.setDispatcher(dispatcher);
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.execute(request).get();
+
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test", actualRequest.getPath());
+        assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
+    }
 }
