@@ -108,31 +108,35 @@ public class CasClient {
                 .build();
     }
 
-    public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
-        logger.info("STARTING TO FETCH SESSION FROM CAS.");
-        Request tgtReq = withCsrfAndCallerId(new RequestBuilder()
+    private Request buildSTRequest(Response response) {
+        logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
+
+        final String serviceUrl = String.format("%s%s",
+                config.getServiceUrl(),
+                config.getServiceUrlSuffix()
+        );
+
+        return withCsrfAndCallerId(new RequestBuilder()
+                .setUrl(tgtLocationFromResponse(response))
+                .setMethod("POST")
+                .addFormParam("service", serviceUrl)
+                .build());
+
+    }
+
+    private Request buildTgtRequest() {
+        return withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(String.format("%s/v1/tickets", config.getCasUrl()))
                 .setMethod("POST")
                 .addFormParam("username", config.getUsername())
                 .addFormParam("password", config.getPassword())
                 .build());
-        final String serviceUrl = String.format("%s%s",
-                config.getServiceUrl(),
-                config.getServiceUrlSuffix()
-        );
-        logger.info((String.format("TGT request to url: %s", tgtReq.getUrl())));
-        logger.info("service url: " + serviceUrl);
-        CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(tgtReq)
-                .toCompletableFuture().thenCompose(response -> {
-                    logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
-                    Request req = withCsrfAndCallerId(new RequestBuilder()
-                            .setUrl(tgtLocationFromResponse(response))
-                            .setMethod("POST")
-                            .addFormParam("service", serviceUrl)
-                            .build());
-                    logger.info((String.format("service ticket request to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture();
-                }).thenCompose(response -> {
+    }
+
+    public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
+        logger.info("STARTING TO FETCH SESSION FROM CAS.");
+        CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(buildTgtRequest())
+                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture()).thenCompose(response -> {
                     logger.info("st response: " + response.toString());
                     logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(new RequestBuilder()
@@ -142,11 +146,8 @@ public class CasClient {
                             .build());
                     logger.info((String.format("ticket request to url: %s", req.getUrl())));
                     return asyncHttpClient.executeRequest(req).toCompletableFuture();
-//                }).thenApply(this::sessionFromResponse);
-                }).thenApply(response -> {
-                    logger.info("CAS RESPONSE CODE ->" + response.getStatusCode());
-                    return sessionFromResponse(response);
-                });
+                }).thenApply(this::sessionFromResponse);
+
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
 
         if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {
@@ -209,6 +210,28 @@ public class CasClient {
             return execute(request).get();
         } catch (Exception e) {
             throw new ExecutionException(String.format("Failed to execute blocking request: %s", request.getUrl()), e);
+        }
+    }
+
+    public CompletableFuture<Response> executeWithServiceTicket(Request request) {
+        return asyncHttpClient.executeRequest(buildTgtRequest())
+                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture())
+                .thenCompose(response -> {
+                    logger.info("st response: " + response.toString());
+                    logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
+                    Request req = withCsrfAndCallerId(request.toBuilder()
+                            .addQueryParam("ticket", ticketFromResponse(response))
+                            .build());
+                    logger.info((String.format("ticket request to url: %s", req.getUrl())));
+                    return asyncHttpClient.executeRequest(req).toCompletableFuture();
+                });
+    }
+
+    public Response executeWithServiceTicketBlocking(Request request) throws ExecutionException {
+        try {
+            return executeWithServiceTicket(request).get();
+        } catch (Exception e) {
+            throw new ExecutionException(String.format("Failed to execute blocking request with service ticket: %s", request.getUrl()), e);
         }
     }
 

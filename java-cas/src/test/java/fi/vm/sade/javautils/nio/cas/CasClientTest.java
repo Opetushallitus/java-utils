@@ -184,7 +184,7 @@ public class CasClientTest {
     }
 
     @Test
-    public void shouldReturnValidTicketResponse() throws ExecutionException, InterruptedException {
+    public void shouldSendSessionCookieWithRequest() throws ExecutionException, InterruptedException {
         final Dispatcher dispatcher = new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
@@ -227,5 +227,82 @@ public class CasClientTest {
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test", actualRequest.getPath());
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
+    }
+
+    @Test
+    public void shouldSendServiceTicketWithRequest() throws ExecutionException, InterruptedException {
+        final Dispatcher dispatcher = new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                System.out.println(request.getPath());
+                if (request.getPath().contains("/v1/tickets")) {
+                    System.out.println(1);
+                    return new MockResponse()
+                            .addHeader("Location", mockWebServer.url("/") + "tickets")
+                            .setResponseCode(201);
+                } else if (request.getPath().contains("tickets") && request.getMethod().equals("POST")) {
+                    return new MockResponse()
+                            .setBody(VALID_TICKET)
+                            .setResponseCode(200);
+                } else {
+                    return new MockResponse()
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .setResponseCode(200);
+                }
+            }
+        };
+
+        mockWebServer.setDispatcher(dispatcher);
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeWithServiceTicket(request).get();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test?ticket=it-ankan-tiketti", actualRequest.getPath());
+    }
+
+    @Test
+    public void shouldSendServiceTicketWithRequestWithParameters() throws ExecutionException, InterruptedException {
+        final Dispatcher dispatcher = new Dispatcher() {
+            @Override
+            public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+                System.out.println(request.getPath());
+                if (request.getPath().contains("/v1/tickets")) {
+                    System.out.println(1);
+                    return new MockResponse()
+                            .addHeader("Location", mockWebServer.url("/") + "tickets")
+                            .setResponseCode(201);
+                } else if (request.getPath().contains("tickets") && request.getMethod().equals("POST")) {
+                    return new MockResponse()
+                            .setBody(VALID_TICKET)
+                            .setResponseCode(200);
+                } else {
+                    return new MockResponse()
+                            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                            .setResponseCode(200);
+                }
+            }
+        };
+
+        mockWebServer.setDispatcher(dispatcher);
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeWithServiceTicketBlocking(request);
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test?param=1234&ticket=it-ankan-tiketti", actualRequest.getPath());
     }
 }
