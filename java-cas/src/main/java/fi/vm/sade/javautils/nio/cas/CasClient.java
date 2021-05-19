@@ -38,7 +38,6 @@ import static org.asynchttpclient.Dsl.asyncHttpClient;
       .setMethod("POST")
       .setBody("[]")
       .build();
-
     casClient.execute(req).thenApply(response -> System.out.println(response.getStatusCode()));
  */
 
@@ -87,8 +86,6 @@ public class CasClient {
 
     private CasSession sessionFromResponse(Response casResponse) {
         logger.info("ticket response: " + casResponse.toString());
-        logger.info("cas response cookies:" + casResponse.getCookies().toString());
-        logger.info("config jsessionname: " + config.getjSessionName());
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
                 CasSession session = newSessionFromToken(cookie.value());
@@ -108,6 +105,15 @@ public class CasClient {
                 .build();
     }
 
+    private Request buildTgtRequest() {
+        return withCsrfAndCallerId(new RequestBuilder()
+                .setUrl(String.format("%s/v1/tickets", config.getCasUrl()))
+                .setMethod("POST")
+                .addFormParam("username", config.getUsername())
+                .addFormParam("password", config.getPassword())
+                .build());
+    }
+
     private Request buildSTRequest(Response response) {
         logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
         final String serviceUrl = String.format("%s%s",
@@ -121,30 +127,20 @@ public class CasClient {
                 .build());
     }
 
-    private Request buildTgtRequest() {
+    private Request buildSessionRequest(Response response) {
+        logger.info("st response: " + response.toString());
         return withCsrfAndCallerId(new RequestBuilder()
-                .setUrl(String.format("%s/v1/tickets", config.getCasUrl()))
-                .setMethod("POST")
-                .addFormParam("username", config.getUsername())
-                .addFormParam("password", config.getPassword())
+                .setUrl(config.getSessionUrl())
+                .setMethod("GET")
+                .addQueryParam("ticket", ticketFromResponse(response))
                 .build());
     }
 
     public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
-        logger.info("STARTING TO FETCH SESSION FROM CAS.");
         CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(buildTgtRequest())
-                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture()).thenCompose(response -> {
-                    logger.info("st response: " + response.toString());
-                    logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
-                    Request req = withCsrfAndCallerId(new RequestBuilder()
-                            .setUrl(config.getSessionUrl())
-                            .setMethod("GET")
-                            .addQueryParam("ticket", ticketFromResponse(response))
-                            .build());
-                    logger.info((String.format("ticket request to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture();
-                }).thenApply(this::sessionFromResponse);
-
+                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response))
+                        .toCompletableFuture()).thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                        .toCompletableFuture()).thenApply(this::sessionFromResponse);
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
 
         if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {
@@ -181,7 +177,6 @@ public class CasClient {
     }
 
     public CompletableFuture<CasSession> getSession() {
-        logger.info("GETSESSSION CALLED!");
         final CasSessionFetchProcess currentSession = sessionStore.get();
         logger.info("CURRENTSESSION: " + currentSession.toString());
         return currentSession.getSessionProcess()
@@ -214,16 +209,20 @@ public class CasClient {
         return asyncHttpClient.executeRequest(buildTgtRequest())
                 .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture())
                 .thenCompose(response -> {
-                    if (response.getStatusCode() == 302 || response.getStatusCode() == 401) {
-                        return execute(request);
-                    }
-                    logger.info("st response: " + response.toString());
-                    logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(request.toBuilder()
                             .addQueryParam("ticket", ticketFromResponse(response))
                             .build());
-                    logger.info((String.format("ticket request to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture();
+                    logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
+                    return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
+                        logger.info((String.format("request with service ticket to url,response code: %s", res.getStatusCode())));
+                        logger.info(res.toString());
+                        if (res.getStatusCode() == 302 || res.getStatusCode() == 401) {
+                            logger.info("Got statuscode " + res.getStatusCode() + ", trying to execute with session.");
+                            return execute(request);
+                        }
+                        logger.info("successful executeWithServiceTicketRequest! returning: " + res.toString());
+                        return CompletableFuture.completedFuture(res);
+                    });
                 });
     }
 
@@ -236,7 +235,6 @@ public class CasClient {
     }
 
     private CompletableFuture<Response> fetchValidationResponse(String service, String ticket) {
-        logger.info("Fetching serviceValidate: " + ticket + " , service: " + service);
         Request req = withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(config.getCasUrl() + "/serviceValidate?ticket=" + ticket + "&service=" + service)
                 .addQueryParam("ticket", ticket)
