@@ -110,18 +110,15 @@ public class CasClient {
 
     private Request buildSTRequest(Response response) {
         logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
-
         final String serviceUrl = String.format("%s%s",
                 config.getServiceUrl(),
                 config.getServiceUrlSuffix()
         );
-
         return withCsrfAndCallerId(new RequestBuilder()
                 .setUrl(tgtLocationFromResponse(response))
                 .setMethod("POST")
                 .addFormParam("service", serviceUrl)
                 .build());
-
     }
 
     private Request buildTgtRequest() {
@@ -217,6 +214,9 @@ public class CasClient {
         return asyncHttpClient.executeRequest(buildTgtRequest())
                 .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture())
                 .thenCompose(response -> {
+                    if (response.getStatusCode() == 302 || response.getStatusCode() == 401) {
+                        return execute(request);
+                    }
                     logger.info("st response: " + response.toString());
                     logger.info("ST RESPONSE CODE ->" + response.getStatusCode());
                     Request req = withCsrfAndCallerId(request.toBuilder()
@@ -294,7 +294,6 @@ public class CasClient {
                 oppijaAttributes.put("impersonatorNationalIdentificationNumber", document.getElementsByTagName("cas:impersonatorNationalIdentificationNumber").item(0).getTextContent());
                 oppijaAttributes.put("impersonatorDisplayName", document.getElementsByTagName("cas:impersonatorDisplayName").item(0).getTextContent());
             }
-
             return oppijaAttributes;
         } catch (Exception e) {
             throw new RuntimeException("CAS service ticket validation failed for oppija attributes: ", e);
