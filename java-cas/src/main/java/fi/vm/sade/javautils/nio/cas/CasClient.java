@@ -12,6 +12,8 @@ import org.xml.sax.InputSource;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Set;
@@ -23,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static fi.vm.sade.javautils.nio.cas.CasSessionFetchProcess.emptySessionProcess;
+import static fi.vm.sade.javautils.nio.cas.CasTicketGrantingTicketFetchProcess.emptyTicketGrantingTicketProcess;
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 
 /*
@@ -47,7 +50,14 @@ public class CasClient {
     private final AsyncHttpClient asyncHttpClient;
     private final AtomicReference<CasSessionFetchProcess> sessionStore =
             new AtomicReference<>(emptySessionProcess());
-    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(15);
+    private final AtomicReference<CasTicketGrantingTicketFetchProcess> tgtStore =
+            new AtomicReference<>(emptyTicketGrantingTicketProcess());
+    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(1);
+    private final long estimatedValidTgt = TimeUnit.MINUTES.toMillis(5);
+//    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(15);
+//    private final long estimatedValidTgt = TimeUnit.HOURS.toMillis(7);
+
+
 
     public CasClient(CasConfig config) {
         this.config = config;
@@ -63,12 +73,12 @@ public class CasClient {
                 .build());
     }
 
-    private String tgtLocationFromResponse(Response casResponse) {
-        if (201 == casResponse.getStatusCode()) {
-            logger.info("got tgt response:" + casResponse.toString());
-            return casResponse.getHeader("Location");
+    private String locationFromResponse(Response tgtResponse) {
+        if (201 == tgtResponse.getStatusCode()) {
+            logger.info("got tgt response:" + tgtResponse.toString());
+            return tgtResponse.getHeader("Location");
         } else {
-            throw new RuntimeException("Couldn't get TGT ticket!");
+            throw new RuntimeException("Couldn't get TGT ticket from CAS!");
         }
     }
 
@@ -81,7 +91,11 @@ public class CasClient {
     }
 
     private CasSession newSessionFromToken(String token) {
-        return new CasSession(config.getjSessionName(), token, new Date(System.currentTimeMillis() + estimatedValidToken));
+        return new CasSession(token, new Date(System.currentTimeMillis() + estimatedValidToken));
+    }
+
+    private CasTicketGrantingTicket newTicketGrantingTicketFromToken(String token) {
+        return new CasTicketGrantingTicket(token, new Date(System.currentTimeMillis() + estimatedValidTgt));
     }
 
     private CasSession sessionFromResponse(Response casResponse) {
@@ -95,6 +109,23 @@ public class CasClient {
         }
         logger.error("Cas Response: " + casResponse.toString());
         throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
+    }
+
+    private String tgtFromLocation(String location) throws URISyntaxException {
+        String path = new URI(location).getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    private CasTicketGrantingTicket tgtFromResponse(Response tgtResponse) {
+        logger.info("tgt response: " + tgtResponse.toString());
+        try {
+            CasTicketGrantingTicket ticket = newTicketGrantingTicketFromToken(tgtFromLocation(locationFromResponse(tgtResponse)));
+            logger.info((String.format("Got CAS ticket!")));
+            return ticket;
+        } catch (URISyntaxException e) {
+            logger.error("Cas Response: " + tgtResponse.toString());
+            throw new RuntimeException("Could not create CasTicketGrantingTicket from CAS tgt response.");
+        }
     }
 
     private Request withCsrfAndCallerId(Request req) {
@@ -114,14 +145,13 @@ public class CasClient {
                 .build());
     }
 
-    private Request buildSTRequest(Response response) {
-        logger.info("TGT RESPONSE CODE ->" + response.getStatusCode());
+    private Request buildSTRequest(String ticketGrantingTicket) {
         final String serviceUrl = String.format("%s%s",
                 config.getServiceUrl(),
                 config.getServiceUrlSuffix()
         );
         return withCsrfAndCallerId(new RequestBuilder()
-                .setUrl(tgtLocationFromResponse(response))
+                .setUrl(String.format("%s/v1/tickets/%s", config.getCasUrl(), ticketGrantingTicket))
                 .setMethod("POST")
                 .addFormParam("service", serviceUrl)
                 .build());
@@ -134,21 +164,6 @@ public class CasClient {
                 .setMethod("GET")
                 .addQueryParam("ticket", ticketFromResponse(response))
                 .build());
-    }
-
-    public CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
-        CompletableFuture<CasSession> responsePromise = asyncHttpClient.executeRequest(buildTgtRequest())
-                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response))
-                        .toCompletableFuture()).thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
-                        .toCompletableFuture()).thenApply(this::sessionFromResponse);
-        final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
-
-        if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {
-            return newFetchProcess;
-        } else {
-            responsePromise.cancel(true);
-            return sessionStore.get();
-        }
     }
 
     private Function<Response, Response> onSuccessIncreaseSessionTime(CasSessionFetchProcess currentSessionProcess, CasSession session) {
@@ -178,14 +193,10 @@ public class CasClient {
 
     public CompletableFuture<CasSession> getSession() {
         final CasSessionFetchProcess currentSession = sessionStore.get();
-        logger.info("CURRENTSESSION: " + currentSession.toString());
         return currentSession.getSessionProcess()
                 .thenCompose(session ->
-                        {
-                            logger.info("is sesssion valid: " + session.isValid());
-                            return session.isValid() ? currentSession.getSessionProcess() :
-                                    sessionRequest(currentSession).getSessionProcess();
-                        }
+                        session.isValid() ? currentSession.getSessionProcess() :
+                                sessionRequest(currentSession).getSessionProcess()
                 );
     }
 
@@ -194,7 +205,70 @@ public class CasClient {
         return currentSession.getSessionProcess()
                 .thenCompose(session ->
                         session.isValid() ? executeRequestWithReusedSession(currentSession, session, request) :
-                                sessionRequest(currentSession).getSessionProcess().thenCompose(newSession -> executeRequestWithSession(newSession, request)));
+                                sessionRequest(currentSession).getSessionProcess()
+                                        .thenCompose(newSession -> executeRequestWithSession(newSession, request)));
+    }
+
+    private CompletableFuture<Response> serviceTicketRequestWithTicketGrantingTicket(String ticketGrantingTicket) {
+        return asyncHttpClient.executeRequest(buildSTRequest(ticketGrantingTicket)).toCompletableFuture();
+    }
+
+    private CompletableFuture<CasSession> sessionRequestWithTicketGrantingTicket(String ticketGrantingTicket) {
+        return serviceTicketRequestWithTicketGrantingTicket(ticketGrantingTicket).thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                        .toCompletableFuture().thenApply(this::sessionFromResponse));
+    }
+
+    private CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
+        final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
+        CompletableFuture<CasSession> responsePromise = currentTicketGrantingTicket.getTicketGrantingTicketProcess()
+                .thenCompose(ticket ->
+                        ticket.isValid() ? sessionRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
+                                tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                        newTicketGrantingTicket -> sessionRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
+
+        final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
+        if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {
+            return newFetchProcess;
+        } else {
+            responsePromise.cancel(true);
+            return sessionStore.get();
+        }
+    }
+
+    private CasTicketGrantingTicketFetchProcess tgtRequest(CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket) {
+        CompletableFuture<CasTicketGrantingTicket> responsePromise = asyncHttpClient.executeRequest(buildTgtRequest())
+                .toCompletableFuture().thenApply(this::tgtFromResponse);
+        final CasTicketGrantingTicketFetchProcess newFetchProcess = new CasTicketGrantingTicketFetchProcess(responsePromise);
+
+        if (tgtStore.compareAndSet(currentTicketGrantingTicket, newFetchProcess)) {
+            return newFetchProcess;
+        } else {
+            responsePromise.cancel(true);
+            return tgtStore.get();
+        }
+    }
+
+    public CompletableFuture<Response> executeWithServiceTicket(Request request) {
+        final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
+        CompletableFuture<Response> stResponse = currentTicketGrantingTicket.getTicketGrantingTicketProcess().thenCompose(ticket ->
+                ticket.isValid() ? serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
+                        tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
+        return stResponse.thenCompose(response -> {
+                    Request req = withCsrfAndCallerId(request.toBuilder()
+                            .addQueryParam("ticket", ticketFromResponse(response))
+                            .build());
+                    logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
+                    return asyncHttpClient.executeRequest(req).toCompletableFuture();//.thenCompose(res -> {
+//                        logger.info(res.toString());
+//                        if (Set.of(302, 401).contains(res.getStatusCode())) {
+//                            //todo: tässä uusi tgt ja st
+//                            logger.info("Got statuscode " + res.getStatusCode() + ", trying to execute with session.");
+//                            return execute(request);
+//                        }
+//                        return CompletableFuture.completedFuture(res);
+//                    });
+                });
     }
 
     public Response executeBlocking(Request request) throws ExecutionException {
@@ -203,27 +277,6 @@ public class CasClient {
         } catch (Exception e) {
             throw new ExecutionException(String.format("Failed to execute blocking request: %s", request.getUrl()), e);
         }
-    }
-
-    public CompletableFuture<Response> executeWithServiceTicket(Request request) {
-        return asyncHttpClient.executeRequest(buildTgtRequest())
-                .toCompletableFuture().thenCompose(response -> asyncHttpClient.executeRequest(buildSTRequest(response)).toCompletableFuture())
-                .thenCompose(response -> {
-                    Request req = withCsrfAndCallerId(request.toBuilder()
-                            .addQueryParam("ticket", ticketFromResponse(response))
-                            .build());
-                    logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
-                        logger.info((String.format("request with service ticket to url,response code: %s", res.getStatusCode())));
-                        logger.info(res.toString());
-                        if (res.getStatusCode() == 302 || res.getStatusCode() == 401) {
-                            logger.info("Got statuscode " + res.getStatusCode() + ", trying to execute with session.");
-                            return execute(request);
-                        }
-                        logger.info("successful executeWithServiceTicketRequest! returning: " + res.toString());
-                        return CompletableFuture.completedFuture(res);
-                    });
-                });
     }
 
     public Response executeWithServiceTicketBlocking(Request request) throws ExecutionException {
@@ -265,13 +318,11 @@ public class CasClient {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document document = builder.parse(new InputSource(new StringReader(response.getResponseBody())));
-            logger.info("Validated!");
             return document.getElementsByTagName("cas:user").item(0).getTextContent();
         } catch (Exception e) {
             throw new RuntimeException("CAS service ticket validation failed: ", e);
         }
     }
-
 
     private HashMap<String, String> getOppijaAttributesFromResponse(Response response) {
         HashMap<String, String> oppijaAttributes = new HashMap<String, String>();
