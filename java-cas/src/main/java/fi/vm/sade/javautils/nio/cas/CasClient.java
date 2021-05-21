@@ -52,10 +52,8 @@ public class CasClient {
             new AtomicReference<>(emptySessionProcess());
     private final AtomicReference<CasTicketGrantingTicketFetchProcess> tgtStore =
             new AtomicReference<>(emptyTicketGrantingTicketProcess());
-    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(1);
-    private final long estimatedValidTgt = TimeUnit.MINUTES.toMillis(5);
-//    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(15);
-//    private final long estimatedValidTgt = TimeUnit.HOURS.toMillis(7);
+    private final long estimatedValidToken = TimeUnit.MINUTES.toMillis(15);
+    private final long estimatedValidTgt = TimeUnit.HOURS.toMillis(7);
 
 
 
@@ -75,7 +73,6 @@ public class CasClient {
 
     private String locationFromResponse(Response tgtResponse) {
         if (201 == tgtResponse.getStatusCode()) {
-            logger.info("got tgt response:" + tgtResponse.toString());
             return tgtResponse.getHeader("Location");
         } else {
             throw new RuntimeException("Couldn't get TGT ticket from CAS!");
@@ -181,14 +178,24 @@ public class CasClient {
         };
     }
 
-    private CompletableFuture<Response> executeRequestWithSession(CasSession session, Request request) {
+    private CompletableFuture<Response> executeRequestWithSession(CasSession session, Request request, boolean forceUpdate) {
         return asyncHttpClient.executeRequest(withCsrfAndCallerId(request.toBuilder()
                 .addOrReplaceCookie(new DefaultCookie(config.getjSessionName(), session.getSessionCookie()))
-                .build())).toCompletableFuture();
+                .build())).toCompletableFuture().thenCompose(response -> {
+            if (Set.of(302, 401).contains(response.getStatusCode())) {
+                if (forceUpdate) {
+                    throw new RuntimeException(String.format("Request with %s failed with status %s after retry.", request.getUrl(), response.getStatusCode()));
+                }
+                logger.info("Got statuscode " + response.getStatusCode() + ", Retrying once...");
+                return execute(request, true);
+            }
+            return CompletableFuture.completedFuture(response);
+
+        });
     }
 
-    private CompletableFuture<Response> executeRequestWithReusedSession(CasSessionFetchProcess currentSessionProcess, CasSession session, Request request) {
-        return executeRequestWithSession(session, request).thenApply(onSuccessIncreaseSessionTime(currentSessionProcess, session));
+    private CompletableFuture<Response> executeRequestWithReusedSession(CasSessionFetchProcess currentSessionProcess, CasSession session, Request request, boolean forceUpdate) {
+        return executeRequestWithSession(session, request, forceUpdate).thenApply(onSuccessIncreaseSessionTime(currentSessionProcess, session));
     }
 
     public CompletableFuture<CasSession> getSession() {
@@ -196,17 +203,23 @@ public class CasClient {
         return currentSession.getSessionProcess()
                 .thenCompose(session ->
                         session.isValid() ? currentSession.getSessionProcess() :
-                                sessionRequest(currentSession).getSessionProcess()
+                                sessionRequest(currentSession, false).getSessionProcess()
                 );
     }
 
     public CompletableFuture<Response> execute(Request request) {
+        return execute(request, false);
+    }
+
+    public CompletableFuture<Response> execute(Request request, boolean forceUpdate) {
         final CasSessionFetchProcess currentSession = sessionStore.get();
         return currentSession.getSessionProcess()
                 .thenCompose(session ->
-                        session.isValid() ? executeRequestWithReusedSession(currentSession, session, request) :
-                                sessionRequest(currentSession).getSessionProcess()
-                                        .thenCompose(newSession -> executeRequestWithSession(newSession, request)));
+                        forceUpdate ? sessionRequest(currentSession, true).getSessionProcess()
+                                .thenCompose(newSession -> executeRequestWithSession(newSession, request, forceUpdate)) :
+                        session.isValid() ? executeRequestWithReusedSession(currentSession, session, request, forceUpdate) :
+                                sessionRequest(currentSession, false).getSessionProcess()
+                                        .thenCompose(newSession -> executeRequestWithSession(newSession, request, forceUpdate)));
     }
 
     private CompletableFuture<Response> serviceTicketRequestWithTicketGrantingTicket(String ticketGrantingTicket) {
@@ -218,10 +231,12 @@ public class CasClient {
                         .toCompletableFuture().thenApply(this::sessionFromResponse));
     }
 
-    private CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession) {
+    private CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession, boolean forceUpdate) {
         final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
         CompletableFuture<CasSession> responsePromise = currentTicketGrantingTicket.getTicketGrantingTicketProcess()
                 .thenCompose(ticket ->
+                        forceUpdate ? tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                newTicketGrantingTicket -> sessionRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())) :
                         ticket.isValid() ? sessionRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
                                 tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
                                         newTicketGrantingTicket -> sessionRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
@@ -249,8 +264,13 @@ public class CasClient {
     }
 
     public CompletableFuture<Response> executeWithServiceTicket(Request request) {
+        return executeWithServiceTicket(request, false);
+    }
+    private CompletableFuture<Response> executeWithServiceTicket(Request request, boolean forceUpdate) {
         final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
         CompletableFuture<Response> stResponse = currentTicketGrantingTicket.getTicketGrantingTicketProcess().thenCompose(ticket ->
+                forceUpdate ? tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                        newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())) :
                 ticket.isValid() ? serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
                         tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
                                 newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
@@ -259,15 +279,17 @@ public class CasClient {
                             .addQueryParam("ticket", ticketFromResponse(response))
                             .build());
                     logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture();//.thenCompose(res -> {
-//                        logger.info(res.toString());
-//                        if (Set.of(302, 401).contains(res.getStatusCode())) {
-//                            //todo: tässä uusi tgt ja st
-//                            logger.info("Got statuscode " + res.getStatusCode() + ", trying to execute with session.");
-//                            return execute(request);
-//                        }
-//                        return CompletableFuture.completedFuture(res);
-//                    });
+                    return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
+                        logger.info(res.toString());
+                        if (Set.of(302, 401).contains(res.getStatusCode())) {
+                            if (forceUpdate) {
+                                throw new RuntimeException(String.format("Request %s failed with status %s after retry.", request.getUrl(), res.getStatusCode()));
+                            }
+                            logger.info("Got statuscode " + res.getStatusCode() + ", Retrying once...");
+                            return executeWithServiceTicket(request, true);
+                        }
+                        return CompletableFuture.completedFuture(res);
+                    });
                 });
     }
 

@@ -6,7 +6,10 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.asynchttpclient.Request;
 import org.asynchttpclient.RequestBuilder;
 import org.hamcrest.core.IsInstanceOf;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
@@ -22,6 +25,7 @@ public class CasClientTest {
     private static final String CSRF_VALUE = "CSRF";
     private static final String COOKIENAME = "JSESSIONID";
     private static final String VALID_TICKET = "it-ankan-tiketti";
+    private static final String VALID_NEW_TICKET = "it-ankan-tiketti-2";
 
     @Before
     public void init() {
@@ -32,7 +36,7 @@ public class CasClientTest {
                 mockWebServer.url("/cas/") + "test-service",
                 "CSRF",
                 "Caller-Id",
-                "JSESSIONID",
+                COOKIENAME,
                 "/j_spring_cas_security_check"));
     }
 
@@ -126,6 +130,7 @@ public class CasClientTest {
             "        </cas:attributes>\n" +
             "</cas:authenticationSuccess>";
 
+     
     @Test
     public void shouldParseOppijaAttributesFromXMLSuccessfully() throws ExecutionException {
         mockWebServer.enqueue(new MockResponse().setBody(casOppijaAttributes));
@@ -140,6 +145,7 @@ public class CasClientTest {
         assertEquals(oppijaAttributes.get("nationalIdentificationNumber"), "010170-999R");
     }
 
+     
     @Test
     public void shouldParseOppijaAttributesWithImpersonatorDataFromXMLSuccessfully() throws ExecutionException {
         mockWebServer.enqueue(new MockResponse().setBody(casOppijaAttributesWithImpersonatorData));
@@ -156,6 +162,7 @@ public class CasClientTest {
         assertEquals(oppijaAttributes.get("impersonatorDisplayName"), "Faija Roger Äyrämö");
     }
 
+     
     @Test
     public void shouldThrowExceptionOnParseOppijaAttributesIfMalformedXML() throws ExecutionException {
         exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
@@ -164,6 +171,7 @@ public class CasClientTest {
         casClient.validateServiceTicketWithOppijaAttributesBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
     }
 
+     
     @Test
     public void shouldParseVirkailijaUsernameFromXMLSuccessfully() throws ExecutionException {
         mockWebServer.enqueue(new MockResponse().setBody(casVirkailijaAttributes));
@@ -171,6 +179,7 @@ public class CasClientTest {
         assertEquals("it-ankka", virkailijaUsername);
     }
 
+     
     @Test
     public void shouldThrowExceptionOnParseVirkailijaUsernameIfMalformedXML() throws ExecutionException {
         exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
@@ -179,6 +188,7 @@ public class CasClientTest {
         casClient.validateServiceTicketWithVirkailijaUsernameBlocking(mockWebServer.url("/test-service").toString(), VALID_TICKET);
     }
 
+     
     @Test
     public void shouldSendSessionCookieWithRequest() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
@@ -212,6 +222,7 @@ public class CasClientTest {
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
     }
 
+     
     @Test
     public void shouldSendServiceTicketWithRequest() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
@@ -241,6 +252,7 @@ public class CasClientTest {
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?ticket=it-ankan-tiketti", actualRequest.getPath());
     }
+
 
     @Test
     public void shouldSendServiceTicketWithRequestWithParameters() throws ExecutionException, InterruptedException {
@@ -273,7 +285,7 @@ public class CasClientTest {
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234&ticket=it-ankan-tiketti", actualRequest.getPath());
     }
-@Ignore
+
     @Test
     public void shouldSendJSessionIdWithRequestWithParametersWhenResponse302() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
@@ -283,16 +295,21 @@ public class CasClientTest {
                 .setBody(VALID_TICKET)
                 .setResponseCode(200));
         mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(302));
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
                 .setResponseCode(201));
         mockWebServer.enqueue(new MockResponse()
-                .setBody(VALID_TICKET)
+                .setBody(VALID_NEW_TICKET)
                 .setResponseCode(200));
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "1234567890"))
                 .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
                 .setResponseCode(200));
         mockWebServer.enqueue(new MockResponse()
@@ -307,7 +324,8 @@ public class CasClientTest {
                 .addHeader("CSRF", CSRF_VALUE)
                 .build();
 
-        this.casClient.executeWithServiceTicketBlocking(request);
+        this.casClient.executeBlocking(request);
+        mockWebServer.takeRequest().toString();
         mockWebServer.takeRequest().toString();
         mockWebServer.takeRequest().toString();
         mockWebServer.takeRequest().toString();
@@ -316,11 +334,57 @@ public class CasClientTest {
         mockWebServer.takeRequest().toString();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234", actualRequest.getPath());
-        assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
+        assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=1234567890"));
     }
-    @Ignore
+
     @Test
-    public void shouldSendJSessionIdWithRequestWithParametersWhenResponse401() throws ExecutionException, InterruptedException {
+    public void shouldThrowExceptionAfterSecondFailureWithSessionRequest() throws ExecutionException {
+        exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
+        exception.expectMessage(startsWith("Failed to execute blocking request:"));
+
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(302));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_NEW_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "1234567890"))
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .setResponseCode(302));
+
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeBlocking(request);
+
+    }
+
+
+    @Test
+    public void shouldSendServiceTicketWithRequestWithParametersWhenResponse401() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
                 .setResponseCode(201));
@@ -333,11 +397,7 @@ public class CasClientTest {
                 .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
                 .setResponseCode(201));
         mockWebServer.enqueue(new MockResponse()
-                .setBody(VALID_TICKET)
-                .setResponseCode(200));
-        mockWebServer.enqueue(new MockResponse()
-                .addHeader("Content-Type", "application/x-www-form-urlencoded")
-                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+                .setBody(VALID_NEW_TICKET)
                 .setResponseCode(200));
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
@@ -357,9 +417,40 @@ public class CasClientTest {
         mockWebServer.takeRequest().toString();
         mockWebServer.takeRequest().toString();
         mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
-        assertEquals("/test?param=1234", actualRequest.getPath());
-        assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
+        assertEquals("/test?param=1234&ticket=it-ankan-tiketti-2", actualRequest.getPath());
+    }
+
+    @Test
+    public void shouldThrowExceptionAfterSecondFailureWithServiceTicketRequest() throws ExecutionException {
+        exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
+        exception.expectMessage(startsWith("Failed to execute blocking request with service ticket:"));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(401));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_NEW_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .setResponseCode(302));
+
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeWithServiceTicketBlocking(request);
     }
 }
