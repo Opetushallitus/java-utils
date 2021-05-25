@@ -5,5 +5,5 @@ module fi.vm.sade.javautils.cas {
     requires slf4j.api;
     requires java.xml;
     requires org.apache.commons.lang3;
-    exports fi.vm.sade.javautils.cas;
+    exports fi.vm.sade.javautils.nio.cas;
 }

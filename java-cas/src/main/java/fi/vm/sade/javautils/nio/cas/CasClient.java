@@ -104,7 +104,7 @@ public class CasClient {
                 return session;
             }
         }
-        logger.error("Cas Response: " + casResponse.toString());
+        logger.error("Cas session Response: " + casResponse.toString());
         throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
     }
 
@@ -120,7 +120,7 @@ public class CasClient {
             logger.info((String.format("Got CAS ticket!")));
             return ticket;
         } catch (URISyntaxException e) {
-            logger.error("Cas Response: " + tgtResponse.toString());
+            logger.error("Cas tgt Response: " + tgtResponse.toString());
             throw new RuntimeException("Could not create CasTicketGrantingTicket from CAS tgt response.");
         }
     }
