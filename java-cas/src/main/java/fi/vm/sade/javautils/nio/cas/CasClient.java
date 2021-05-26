@@ -95,19 +95,6 @@ public class CasClient {
         return new CasTicketGrantingTicket(token, new Date(System.currentTimeMillis() + estimatedValidTgt));
     }
 
-    private CasSession sessionFromResponse(Response casResponse) {
-        logger.info("ticket response: " + casResponse.toString());
-        for (Cookie cookie : casResponse.getCookies()) {
-            if (config.getjSessionName().equals(cookie.name())) {
-                CasSession session = newSessionFromToken(cookie.value());
-                logger.info((String.format("Got CAS ticket!")));
-                return session;
-            }
-        }
-        logger.error("Cas session Response: " + casResponse.toString());
-        throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
-    }
-
     private String tgtFromLocation(String location) throws URISyntaxException {
         String path = new URI(location).getPath();
         return path.substring(path.lastIndexOf('/') + 1);
@@ -198,15 +185,6 @@ public class CasClient {
         return executeRequestWithSession(session, request, forceUpdate).thenApply(onSuccessIncreaseSessionTime(currentSessionProcess, session));
     }
 
-    public CompletableFuture<CasSession> getSession() {
-        final CasSessionFetchProcess currentSession = sessionStore.get();
-        return currentSession.getSessionProcess()
-                .thenCompose(session ->
-                        session.isValid() ? currentSession.getSessionProcess() :
-                                sessionRequest(currentSession, false).getSessionProcess()
-                );
-    }
-
     public CompletableFuture<Response> execute(Request request) {
         return execute(request, false);
     }
@@ -226,20 +204,56 @@ public class CasClient {
         return asyncHttpClient.executeRequest(buildSTRequest(ticketGrantingTicket)).toCompletableFuture();
     }
 
-    private CompletableFuture<CasSession> sessionRequestWithTicketGrantingTicket(String ticketGrantingTicket) {
-        return serviceTicketRequestWithTicketGrantingTicket(ticketGrantingTicket).thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
-                        .toCompletableFuture().thenApply(this::sessionFromResponse));
+    private CasSession sessionFromResponse(Response casResponse) {
+        logger.info("service ticket response: " + casResponse.toString());
+        logger.info("service ticket status: " + casResponse.getStatusCode());
+        for (Cookie cookie : casResponse.getCookies()) {
+            if (config.getjSessionName().equals(cookie.name())) {
+                CasSession session = newSessionFromToken(cookie.value());
+                logger.info((String.format("Got CAS ticket!")));
+                return session;
+            }
+        }
+        logger.error("Cas session Response: " + casResponse.toString());
+        throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
+    }
+
+    private CompletableFuture<Response> createSessionResponsePromise(CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket, boolean forceUpdate) {
+        return currentTicketGrantingTicket.getTicketGrantingTicketProcess()
+                .thenCompose(ticket ->
+                        forceUpdate ? tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()))
+                                .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                                        .toCompletableFuture()) :
+                                ticket.isValid() ? serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket())
+                                        .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                                                .toCompletableFuture()) :
+                                        tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                                newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()))
+                                                .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                                                        .toCompletableFuture()));
     }
 
     private CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession, boolean forceUpdate) {
         final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
-        CompletableFuture<CasSession> responsePromise = currentTicketGrantingTicket.getTicketGrantingTicketProcess()
-                .thenCompose(ticket ->
-                        forceUpdate ? tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                                newTicketGrantingTicket -> sessionRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())) :
-                        ticket.isValid() ? sessionRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
-                                tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                                        newTicketGrantingTicket -> sessionRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
+        CompletableFuture<Response> sessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, forceUpdate);
+
+        CompletableFuture<CasSession> responsePromise = sessionResponse.thenApply(response -> {
+            if (Set.of(302, 401).contains(response.getStatusCode())) {
+                logger.info(String.format("Got statuscode %s from CAS session request, Retrying once...", response.getStatusCode()));
+                CompletableFuture<Response> retrySessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, true);
+                try {
+                    response = retrySessionResponse.get();
+                    if (Set.of(302, 401).contains(response.getStatusCode())) {
+                        throw new RuntimeException(String.format("SessionRequest returned %s after retry.", response.getStatusCode()));
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to get session response after retry", e);
+                }
+
+            }
+            return sessionFromResponse(response);
+        });
 
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
         if (sessionStore.compareAndSet(currentSession, newFetchProcess)) {

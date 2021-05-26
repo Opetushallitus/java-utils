@@ -382,7 +382,6 @@ public class CasClientTest {
 
     }
 
-
     @Test
     public void shouldSendServiceTicketWithRequestWithParametersWhenResponse401() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
@@ -453,4 +452,92 @@ public class CasClientTest {
 
         this.casClient.executeWithServiceTicketBlocking(request);
     }
+
+    @Test
+    public void shouldSendJSessionIdWithRequestWithParametersWhenSessionResponse302() throws ExecutionException, InterruptedException {
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "XXXXWHUTEVAMAN"))
+                .setResponseCode(302));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_NEW_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "1234567890"))
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .setResponseCode(200));
+
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeBlocking(request);
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest().toString();
+
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test?param=1234", actualRequest.getPath());
+        assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=1234567890"));
+    }
+
+    @Test
+    public void shouldThrowExceptionWhenSessionResponseFailsOnSecondTry() throws ExecutionException, InterruptedException {
+        exception.expectCause(IsInstanceOf.instanceOf(ExecutionException.class));
+
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+                .setResponseCode(302));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_NEW_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "STILLWHUTEVAMAN"))
+                .setResponseCode(302));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .setResponseCode(200));
+
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+            this.casClient.executeBlocking(request);
+    }
 }
+
