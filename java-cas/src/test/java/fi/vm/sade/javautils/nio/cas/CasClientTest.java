@@ -214,9 +214,9 @@ public class CasClientTest {
 
         this.casClient.execute(request).get();
 
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test", actualRequest.getPath());
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=123456789"));
@@ -247,8 +247,8 @@ public class CasClientTest {
                 .build();
 
         this.casClient.executeWithServiceTicket(request).get();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?ticket=it-ankan-tiketti", actualRequest.getPath());
     }
@@ -280,8 +280,8 @@ public class CasClientTest {
                 .build();
 
         this.casClient.executeWithServiceTicketBlocking(request);
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234&ticket=it-ankan-tiketti", actualRequest.getPath());
     }
@@ -325,13 +325,13 @@ public class CasClientTest {
                 .build();
 
         this.casClient.executeBlocking(request);
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234", actualRequest.getPath());
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=1234567890"));
@@ -411,11 +411,11 @@ public class CasClientTest {
                 .build();
 
         this.casClient.executeWithServiceTicketBlocking(request);
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234&ticket=it-ankan-tiketti-2", actualRequest.getPath());
     }
@@ -475,7 +475,7 @@ public class CasClientTest {
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "1234567890"))
                 .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
-                .setResponseCode(200));
+                .setResponseCode(302));
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .setResponseCode(200));
@@ -489,17 +489,18 @@ public class CasClientTest {
                 .build();
 
         this.casClient.executeBlocking(request);
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
-        mockWebServer.takeRequest().toString();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
 
         RecordedRequest actualRequest = mockWebServer.takeRequest();
         assertEquals("/test?param=1234", actualRequest.getPath());
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=1234567890"));
     }
+
 
     @Test
     public void shouldThrowExceptionWhenSessionResponseFailsOnSecondTry() throws ExecutionException, InterruptedException {

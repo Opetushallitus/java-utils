@@ -205,8 +205,6 @@ public class CasClient {
     }
 
     private CasSession sessionFromResponse(Response casResponse) {
-        logger.info("service ticket response: " + casResponse.toString());
-        logger.info("service ticket status: " + casResponse.getStatusCode());
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
                 CasSession session = newSessionFromToken(cookie.value());
@@ -214,7 +212,7 @@ public class CasClient {
                 return session;
             }
         }
-        logger.error("Cas session Response: " + casResponse.toString());
+        logger.error("Cas session Response failed: " + casResponse.toString());
         throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
     }
 
@@ -239,20 +237,20 @@ public class CasClient {
         CompletableFuture<Response> sessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, forceUpdate);
 
         CompletableFuture<CasSession> responsePromise = sessionResponse.thenApply(response -> {
-            if (Set.of(302, 401).contains(response.getStatusCode())) {
-                logger.info(String.format("Got statuscode %s from CAS session request, Retrying once...", response.getStatusCode()));
-                CompletableFuture<Response> retrySessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, true);
+            logger.info("CAS SESSION RESPONSE: " +response.toString());
                 try {
-                    response = retrySessionResponse.get();
-                    if (Set.of(302, 401).contains(response.getStatusCode())) {
-                        throw new RuntimeException(String.format("SessionRequest returned %s after retry.", response.getStatusCode()));
+                    return sessionFromResponse(response);
+                } catch (RuntimeException cookieException) {
+                    logger.info(String.format("No %s cookie found from response, retrying once...", config.getjSessionName()));
+                    CompletableFuture<Response> retrySessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, true);
+                    try {
+                        Response retryResponse = retrySessionResponse.get();
+                        logger.info("RETRY RESPONSE: " +retryResponse.toString());
+                        return sessionFromResponse(retryResponse);
+                    } catch (Exception e) {
+                        throw new RuntimeException("Failed to get session response after retry", e);
                     }
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to get session response after retry", e);
                 }
-
-            }
-            return sessionFromResponse(response);
         });
 
         final CasSessionFetchProcess newFetchProcess = new CasSessionFetchProcess(responsePromise);
