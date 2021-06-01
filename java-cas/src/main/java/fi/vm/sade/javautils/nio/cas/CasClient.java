@@ -40,6 +40,7 @@ import static org.asynchttpclient.Dsl.asyncHttpClient;
       .setUrl(String.format("%s/suoritusrekisteri/rest/v1/valpas/", host))
       .setMethod("POST")
       .setBody("[]")
+      .setRequestTimeout(300000)
       .build();
     casClient.execute(req).thenApply(response -> System.out.println(response.getStatusCode()));
  */
@@ -68,6 +69,7 @@ public class CasClient {
 
         this.asyncHttpClient = asyncHttpClient(new DefaultAsyncHttpClientConfig.Builder()
                 .setThreadFactory(factory)
+                .setRequestTimeout(config.getRequestTimeout())
                 .build());
     }
 
