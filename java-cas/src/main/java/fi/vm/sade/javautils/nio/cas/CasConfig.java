@@ -10,11 +10,8 @@ public class CasConfig {
   private final String jSessionName;
   private final String serviceUrlSuffix;
   private final String sessionUrl;
-  private final int requestTimeout;
 
-  private static final int DEFAULT_REQUEST_TIMEOUT = 60000;
-
-  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String sessionUrl, int requestTimeout) {
+  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String sessionUrl) {
     this.username = username;
     this.password = password;
     this.casUrl = casUrl;
@@ -24,24 +21,22 @@ public class CasConfig {
     this.jSessionName = jSessionName;
     this.serviceUrlSuffix = serviceUrlSuffix;
     this.sessionUrl = sessionUrl;
-    this.requestTimeout = requestTimeout;
   }
 
-
   public static CasConfig CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix) {
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, DEFAULT_REQUEST_TIMEOUT);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
   }
 
   public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "ring-session";
     final String serviceUrlSuffix = "/auth/cas";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, DEFAULT_REQUEST_TIMEOUT);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
   }
 
   public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "JSESSIONID";
     final String serviceUrlSuffix = "/j_spring_cas_security_check";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, DEFAULT_REQUEST_TIMEOUT);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
   }
 
   public String getjSessionName() {
@@ -76,9 +71,5 @@ public class CasConfig {
 
   public String getSessionUrl() {
     return sessionUrl == null ? serviceUrl + getServiceUrlSuffix() : sessionUrl;
-  }
-
-  public int getRequestTimeout() {
-    return requestTimeout;
   }
 }
