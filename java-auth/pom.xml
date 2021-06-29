@@ -10,18 +10,18 @@
         <relativePath>..</relativePath>
     </parent>
     <artifactId>java-auth</artifactId>
-    <version>0.4.0-SNAPSHOT</version>
+    <version>0.4.1-SNAPSHOT</version>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>1.7.25</version>
+            <version>1.7.30</version>
         </dependency>
         <dependency>
             <groupId>fi.vm.sade.java-utils</groupId>
             <artifactId>httpclient</artifactId>
-            <version>0.4.0-SNAPSHOT</version>
+            <version>0.4.1-SNAPSHOT</version>
         </dependency>
     </dependencies>
 </project>

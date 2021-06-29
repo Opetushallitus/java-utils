@@ -5,7 +5,7 @@ import static org.apache.http.HttpStatus.SC_UNAUTHORIZED;
 import fi.vm.sade.javautils.http.auth.Authenticator;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.ConnectionReuseStrategy;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;

@@ -17,7 +17,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockserver.client.server.MockServerClient;
+import org.mockserver.client.MockServerClient;
 import org.mockserver.junit.MockServerRule;
 
 import java.io.IOException;
@@ -63,8 +63,7 @@ public class OphHttpClientTest {
                 request()
                         .withMethod("GET")
                         .withPath("/test")
-                        .withQueryStringParameter("a","1","2")
-                        .withHeader("Caller-Id: TESTCLIENT")
+                        .withHeader("Caller-Id", "TESTCLIENT")
         ).respond(response()
                 .withStatusCode(200)
                 .withHeader("Content-Type", TEXT)

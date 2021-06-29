@@ -10,13 +10,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>legacy-cxf-cas</artifactId>
-    <version>0.5.0-SNAPSHOT</version>
-
-    <properties>
-        <apache.httpclient.version>4.5.2</apache.httpclient.version>
-        <spring.version>5.1.5.RELEASE</spring.version>
-        <spring.security.version>4.2.11.RELEASE</spring.security.version>
-    </properties>
+    <version>0.6.0-SNAPSHOT</version>
 
     <dependencyManagement>
         <dependencies>
@@ -28,39 +22,39 @@
             </dependency>
             <dependency>
                 <groupId>fi.vm.sade.java-utils</groupId>
-                <artifactId>java-cas</artifactId>
-                <version>0.5.0-SNAPSHOT</version>
+                <artifactId>java-legacy-cas</artifactId>
+                <version>0.5.1-SNAPSHOT</version>
             </dependency>
 
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-beans</artifactId>
-                <version>${spring.version}</version>
+                <version>5.3.5</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-core</artifactId>
-                <version>${spring.version}</version>
+                <version>5.3.5</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-web</artifactId>
-                <version>${spring.version}</version>
+                <version>5.3.5</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.security</groupId>
                 <artifactId>spring-security-core</artifactId>
-                <version>${spring.security.version}</version>
+                <version>5.4.5</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.security</groupId>
                 <artifactId>spring-security-cas</artifactId>
-                <version>${spring.security.version}</version>
+                <version>5.4.5</version>
             </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-api</artifactId>
-                <version>1.7.25</version>
+                <version>1.7.30</version>
             </dependency>
             <dependency>
                 <groupId>javax.validation</groupId>
@@ -70,7 +64,12 @@
             <dependency>
                 <groupId>org.apache.cxf</groupId>
                 <artifactId>cxf-core</artifactId>
-                <version>3.3.0</version>
+                <version>3.4.2</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.15</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -83,7 +82,7 @@
         </dependency>
         <dependency>
             <groupId>fi.vm.sade.java-utils</groupId>
-            <artifactId>java-cas</artifactId>
+            <artifactId>java-legacy-cas</artifactId>
         </dependency>
 
         <dependency>
