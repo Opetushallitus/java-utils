@@ -217,15 +217,16 @@ public class CasClient {
     }
 
     private CasSession sessionFromResponse(Response casResponse) {
+        logger.info("JAVA-CAS SESSIONFROMRESPONSE: " + casResponse);
         for (Cookie cookie : casResponse.getCookies()) {
             if (config.getjSessionName().equals(cookie.name())) {
                 CasSession session = newSessionFromToken(cookie.value());
-                logger.info((String.format("JAVA-CAS Got CAS ticket!")));
+                logger.info(String.format("JAVA-CAS Got CAS ticket!"));
                 return session;
             }
         }
         logger.error("Cas session Response failed: " + casResponse.toString());
-        throw new RuntimeException(String.format("%s cookie not in CAS authentication response!", config.getjSessionName()));
+        throw new RuntimeException(String.format("%s cookie not found in CAS authentication response!", config.getjSessionName()));
     }
 
     private CompletableFuture<Response> createSessionResponsePromise(CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket, boolean forceUpdate) {
@@ -262,8 +263,10 @@ public class CasClient {
         CompletableFuture<Response> sessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, forceUpdate);
 
         CompletableFuture<CasSession> responsePromise = sessionResponse.thenCompose(response -> {
-            logger.info("JAVA-CAS SESSION RESPONSE: " +response.toString());
+//            logger.info("JAVA-CAS SESSION RESPONSE: " +response.toString());
                 try {
+
+                    logger.info("JAVA-CAS TRY SESSION RESPONSE " +response.toString());
                     return CompletableFuture.completedFuture(sessionFromResponse(response));
                 } catch (RuntimeException cookieException) {
                     logger.info(String.format("No %s cookie found from response, retrying once...", config.getjSessionName()));
