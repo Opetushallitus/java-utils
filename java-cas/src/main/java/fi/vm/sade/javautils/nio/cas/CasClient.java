@@ -261,20 +261,19 @@ public class CasClient {
         final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
         CompletableFuture<Response> sessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, forceUpdate);
 
-        CompletableFuture<CasSession> responsePromise = sessionResponse.thenApply(response -> {
+        CompletableFuture<CasSession> responsePromise = sessionResponse.thenCompose(response -> {
             logger.info("JAVA-CAS SESSION RESPONSE: " +response.toString());
                 try {
-                    return sessionFromResponse(response);
+                    return CompletableFuture.completedFuture(sessionFromResponse(response));
                 } catch (RuntimeException cookieException) {
                     logger.info(String.format("No %s cookie found from response, retrying once...", config.getjSessionName()));
-                    CompletableFuture<Response> retrySessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, true);
+                    CompletableFuture<CasSession> retrySessionResponse =
+                      createSessionResponsePromise(currentTicketGrantingTicket, true).thenApply(r -> sessionFromResponse(r));
                     try {
                         logger.info("JAVA-CAS SESSION RETRY");
-                        Response retryResponse = retrySessionResponse.get();
-                        logger.info("JAVA-CAS SESSION RETRY RESPONSE: " + retryResponse.toString());
-                        return sessionFromResponse(retryResponse);
+                        return retrySessionResponse;
                     } catch (Exception e) {
-                        throw new RuntimeException("Failed to get session response after retry", e);
+                        return CompletableFuture.failedFuture(new RuntimeException("Failed to get session response after retry", e));
                     }
                 }
         });
