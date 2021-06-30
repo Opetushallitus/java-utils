@@ -186,7 +186,14 @@ public class CasClient {
     }
 
     public CompletableFuture<Response> execute(Request request) {
-        return execute(request, false);
+        try {
+            return execute(request, false);
+        } catch (RuntimeException e) {
+            // Just make sure we do not fail instantly...
+            logger.info("JAVA CAS - FIRST REQUEST FAILING, RETRYING..." + e);
+            return execute(request, true);
+        }
+
     }
 
     public CompletableFuture<Response> execute(Request request, boolean forceUpdate) {
