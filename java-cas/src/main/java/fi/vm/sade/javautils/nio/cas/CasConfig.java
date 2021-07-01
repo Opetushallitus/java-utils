@@ -10,8 +10,9 @@ public class CasConfig {
   private final String jSessionName;
   private final String serviceUrlSuffix;
   private final String sessionUrl;
+  private final String serviceTicketHeaderName;
 
-  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String sessionUrl) {
+  public CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String sessionUrl, String serviceTicketHeaderName) {
     this.username = username;
     this.password = password;
     this.casUrl = casUrl;
@@ -21,22 +22,27 @@ public class CasConfig {
     this.jSessionName = jSessionName;
     this.serviceUrlSuffix = serviceUrlSuffix;
     this.sessionUrl = sessionUrl;
+    this.serviceTicketHeaderName = serviceTicketHeaderName;
   }
 
   public static CasConfig CasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix) {
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, null);
   }
 
   public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "ring-session";
     final String serviceUrlSuffix = "/auth/cas";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, null);
   }
 
   public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
     final String jSessionName = "JSESSIONID";
     final String serviceUrlSuffix = "/j_spring_cas_security_check";
-    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null);
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, null);
+  }
+
+  public static CasConfig CustomServiceTicketHeaderCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix, String serviceTicketHeaderName) {
+    return new CasConfig(username, password, casUrl, serviceUrl, csrf, callerId, jSessionName, serviceUrlSuffix, null, serviceTicketHeaderName);
   }
 
   public String getjSessionName() {
@@ -71,5 +77,9 @@ public class CasConfig {
 
   public String getSessionUrl() {
     return sessionUrl == null ? serviceUrl + getServiceUrlSuffix() : sessionUrl;
+  }
+
+  public String getServiceTicketHeaderName() {
+    return serviceTicketHeaderName == null ? null : serviceTicketHeaderName;
   }
 }

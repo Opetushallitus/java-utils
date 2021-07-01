@@ -326,9 +326,17 @@ public class CasClient {
 
         return stResponse.thenCompose(response -> {
             try {
-                Request req = withCsrfAndCallerId(request.toBuilder()
-                        .addQueryParam("ticket", ticketFromResponse(response))
-                        .build());
+                Request req;
+                if (this.config.getServiceTicketHeaderName() == null) {
+                    req = withCsrfAndCallerId(request.toBuilder()
+                            .addQueryParam("ticket", ticketFromResponse(response))
+                            .build());
+                }  else {
+                    req = withCsrfAndCallerId(request.toBuilder()
+                            .addHeader(this.config.getServiceTicketHeaderName(), ticketFromResponse(response))
+                            .build());
+                }
+
                 logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
                 return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
                     logger.info(res.toString());
