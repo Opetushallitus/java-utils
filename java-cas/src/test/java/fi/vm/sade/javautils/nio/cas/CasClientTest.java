@@ -383,7 +383,7 @@ public class CasClientTest {
     }
 
     @Test
-    public void shouldSendServiceTicketWithRequestWithParametersWhenResponse401() throws ExecutionException, InterruptedException {
+    public void shouldSendServiceTicketWithRequestWithParametersWhenResponse302() throws ExecutionException, InterruptedException {
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
                 .setResponseCode(201));
@@ -391,7 +391,7 @@ public class CasClientTest {
                 .setBody(VALID_TICKET)
                 .setResponseCode(200));
         mockWebServer.enqueue(new MockResponse()
-                .setResponseCode(401));
+                .setResponseCode(302));
         mockWebServer.enqueue(new MockResponse()
                 .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
                 .setResponseCode(201));
@@ -412,6 +412,40 @@ public class CasClientTest {
 
         this.casClient.executeWithServiceTicketBlocking(request);
         mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test?param=1234&ticket=it-ankan-tiketti-2", actualRequest.getPath());
+    }
+
+    @Test
+    public void shouldSendServiceTicketWithRequestWithParametersWhenServiceTicketFails() throws ExecutionException, InterruptedException {
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setResponseCode(404));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+                .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(VALID_NEW_TICKET)
+                .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+                .addHeader("Content-Type", "application/x-www-form-urlencoded")
+                .setResponseCode(200));
+
+        Request request = new RequestBuilder()
+                .setUrl(this.mockWebServer.url("/test").toString())
+                .setMethod("GET")
+                .addQueryParam("param", "1234")
+                .addHeader("Caller-Id", "Caller-Id")
+                .addHeader("CSRF", CSRF_VALUE)
+                .build();
+
+        this.casClient.executeWithServiceTicketBlocking(request);
         mockWebServer.takeRequest();
         mockWebServer.takeRequest();
         mockWebServer.takeRequest();

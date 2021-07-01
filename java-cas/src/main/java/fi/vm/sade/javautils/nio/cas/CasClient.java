@@ -188,9 +188,9 @@ public class CasClient {
     public CompletableFuture<Response> execute(Request request) {
         try {
             return execute(request, false);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             // Just make sure we do not fail instantly...
-            logger.info("JAVA CAS - FIRST REQUEST FAILING, RETRYING..." + e);
+            logger.info("JAVA CAS - FIRST REQUEST WITH SESSION FAILING, RETRYING..." + e);
             return execute(request, true);
         }
 
@@ -239,30 +239,22 @@ public class CasClient {
     private CompletableFuture<Response> createSessionResponsePromise(CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket, boolean forceUpdate) {
         return currentTicketGrantingTicket.getTicketGrantingTicketProcess()
                 .thenCompose(ticket -> {
-                    if (forceUpdate) {
-                        logger.info("JAVA-CAS create session - forceupdate true");
-                        return tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                                newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()))
-                                .thenCompose(response -> {
-                                    logger.info("JAVA-CAS build session request");
-                                    return asyncHttpClient.executeRequest(buildSessionRequest(response))
-                                            .toCompletableFuture();
-                                });
-                    } else {
-                        if (ticket.isValid()) {
-                            logger.info("JAVA-CAS create session - forceupdate false, ticket is valid");
-                            return serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket())
-                                    .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
-                                            .toCompletableFuture());
-                        } else {
-                            logger.info("JAVA-CAS create session - forceupdate false, ticket is not valid");
-                            return tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                                    newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()))
-                                    .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
-                                            .toCompletableFuture());
+                    logger.info("JAVA-CAS create session - forceupdate: " + forceUpdate + "ticket valid: " + ticket.isValid());
+                            if (forceUpdate || !ticket.isValid()) {
+                                return tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                                        newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()))
+                                        .thenCompose(response -> {
+                                            logger.info("JAVA-CAS build session request");
+                                            return asyncHttpClient.executeRequest(buildSessionRequest(response))
+                                                    .toCompletableFuture();
+                                        });
+                            } else {
+                                return serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket())
+                                        .thenCompose(response -> asyncHttpClient.executeRequest(buildSessionRequest(response))
+                                                .toCompletableFuture());
+                            }
                         }
-                    }
-                });
+                );
     }
 
     private CasSessionFetchProcess sessionRequest(CasSessionFetchProcess currentSession, boolean forceUpdate) {
@@ -270,9 +262,7 @@ public class CasClient {
         CompletableFuture<Response> sessionResponse = createSessionResponsePromise(currentTicketGrantingTicket, forceUpdate);
 
         CompletableFuture<CasSession> responsePromise = sessionResponse.thenCompose(response -> {
-//            logger.info("JAVA-CAS SESSION RESPONSE: " +response.toString());
                 try {
-
                     logger.info("JAVA-CAS TRY SESSION RESPONSE " +response.toString());
                     return CompletableFuture.completedFuture(sessionFromResponse(response));
                 } catch (RuntimeException cookieException) {
@@ -313,34 +303,49 @@ public class CasClient {
     }
 
     public CompletableFuture<Response> executeWithServiceTicket(Request request) {
-        return executeWithServiceTicket(request, false);
+        try{
+            return executeWithServiceTicket(request, false);
+        } catch (Exception e) {
+            // Just make sure we do not fail instantly...
+            logger.info("JAVA CAS - FIRST REQUEST WITH SERVICCE TICKET FAILING, RETRYING..." + e);
+            return executeWithServiceTicket(request, true);
+        }
     }
 
     private CompletableFuture<Response> executeWithServiceTicket(Request request, boolean forceUpdate) {
         final CasTicketGrantingTicketFetchProcess currentTicketGrantingTicket = tgtStore.get();
-        CompletableFuture<Response> stResponse = currentTicketGrantingTicket.getTicketGrantingTicketProcess().thenCompose(ticket ->
-                forceUpdate ? tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                        newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())) :
-                ticket.isValid() ? serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket()) :
-                        tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
-                                newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket())));
+        CompletableFuture<Response> stResponse = currentTicketGrantingTicket.getTicketGrantingTicketProcess().thenCompose(ticket -> {
+            logger.info("JAVA-CAS service ticket execute - forceupdate: " + forceUpdate + "ticket valid: " + ticket.isValid());
+            if (forceUpdate || !ticket.isValid()) {
+                return tgtRequest(currentTicketGrantingTicket).getTicketGrantingTicketProcess().thenCompose(
+                        newTicketGrantingTicket -> serviceTicketRequestWithTicketGrantingTicket(newTicketGrantingTicket.getTicketGrantingTicket()));
+            } else {
+                    return serviceTicketRequestWithTicketGrantingTicket(ticket.getTicketGrantingTicket());
+            }
+        });
+
         return stResponse.thenCompose(response -> {
-                    Request req = withCsrfAndCallerId(request.toBuilder()
-                            .addQueryParam("ticket", ticketFromResponse(response))
-                            .build());
-                    logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
-                    return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
-                        logger.info(res.toString());
-                        if (Set.of(302, 401).contains(res.getStatusCode())) {
-                            if (forceUpdate) {
-                                throw new RuntimeException(String.format("Request %s failed with status %s after retry.", request.getUrl(), res.getStatusCode()));
-                            }
-                            logger.info("Got statuscode " + res.getStatusCode() + ", Retrying once...");
-                            return executeWithServiceTicket(request, true);
+            try {
+                Request req = withCsrfAndCallerId(request.toBuilder()
+                        .addQueryParam("ticket", ticketFromResponse(response))
+                        .build());
+                logger.info((String.format("request with service ticket  to url: %s", req.getUrl())));
+                return asyncHttpClient.executeRequest(req).toCompletableFuture().thenCompose(res -> {
+                    logger.info(res.toString());
+                    if (Set.of(302, 401).contains(res.getStatusCode())) {
+                        if (forceUpdate) {
+                            return CompletableFuture.failedFuture(new RuntimeException(String.format("Request %s failed with status %s after retry.", request.getUrl(), res.getStatusCode())));
                         }
-                        return CompletableFuture.completedFuture(res);
-                    });
+                        logger.info("Got statuscode " + res.getStatusCode() + ", Retrying once...");
+                        return executeWithServiceTicket(request, true);
+                    }
+                    return CompletableFuture.completedFuture(res);
                 });
+            } catch (RuntimeException e) {
+                logger.info("JAVA-CAS GET SERVICE TICKET FROM RESPONSE FAILED, Retrying once...");
+                return executeWithServiceTicket(request, true);
+            }
+        });
     }
 
     public Response executeBlocking(Request request) throws ExecutionException {
