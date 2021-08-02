@@ -30,14 +30,14 @@ public class CasClientTest {
     @Before
     public void init() {
         this.mockWebServer = new MockWebServer();
-        this.casClient = new CasClient(CasConfig.CasConfig("it-ankka",
+        this.casClient = new CasClient(new CasConfig.CasConfigBuilder("it-ankka",
                 "neverstopthemadness",
                 mockWebServer.url("/cas").toString(),
                 mockWebServer.url("/cas/") + "test-service",
                 "CSRF",
                 "Caller-Id",
                 COOKIENAME,
-                "/j_spring_cas_security_check"));
+                "/j_spring_cas_security_check").build());
     }
 
     @After
@@ -572,7 +572,7 @@ public class CasClientTest {
                 .addHeader("CSRF", CSRF_VALUE)
                 .build();
 
-            this.casClient.executeBlocking(request);
+        this.casClient.executeBlocking(request);
     }
 }
 
