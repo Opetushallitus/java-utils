@@ -22,19 +22,18 @@ public class CasConfig {
     private final String serviceUrl;
     private final String csrf;
     private final String callerId;
-    private final String jSessionName;
+    private String jSessionName;
     private final String serviceUrlSuffix;
     private String sessionUrl;
     private String serviceTicketHeaderName;
 
-    public CasConfigBuilder(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String jSessionName, String serviceUrlSuffix) {
+    public CasConfigBuilder(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String serviceUrlSuffix) {
       this.username = username;
       this.password = password;
       this.casUrl = casUrl;
       this.serviceUrl = serviceUrl;
       this.csrf = csrf;
       this.callerId = callerId;
-      this.jSessionName = jSessionName;
       this.serviceUrlSuffix = serviceUrlSuffix;
     }
 
@@ -45,6 +44,11 @@ public class CasConfig {
 
     public CasConfigBuilder setServiceTicketHeaderName(String serviceTicketHeaderName) {
       this.serviceTicketHeaderName = serviceTicketHeaderName;
+      return this;
+    }
+
+    public CasConfigBuilder setJsessionName(String jSessionName) {
+      this.jSessionName = jSessionName;
       return this;
     }
 
@@ -66,11 +70,15 @@ public class CasConfig {
   }
 
   public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
-    return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "ring-session", "/auth/cas").build();
+    return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "/auth/cas")
+            .setJsessionName("ring-session")
+            .build();
   }
 
   public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
-    return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "JSESSIONID", "/j_spring_cas_security_check").build();
+    return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "/j_spring_cas_security_check")
+            .setJsessionName("JSESSIONID")
+            .build();
   }
 
   public String getjSessionName() {

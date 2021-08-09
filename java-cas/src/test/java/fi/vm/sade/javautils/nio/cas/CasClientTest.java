@@ -36,8 +36,7 @@ public class CasClientTest {
                 mockWebServer.url("/cas/") + "test-service",
                 "CSRF",
                 "Caller-Id",
-                COOKIENAME,
-                "/j_spring_cas_security_check").build());
+                "/j_spring_cas_security_check").setJsessionName(COOKIENAME).build());
     }
 
     @After
