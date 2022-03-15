@@ -13,7 +13,7 @@
     <packaging>jar</packaging>
     <properties>
       <spring.security.version>5.4.5</spring.security.version>
-      <spring.version>5.3.5</spring.version>
+      <spring.version>5.3.14</spring.version>
     </properties>
 
     <dependencyManagement>
