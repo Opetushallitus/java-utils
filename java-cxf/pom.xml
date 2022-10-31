@@ -14,7 +14,7 @@
     <!-- exclusions due <dependencyConvergence/> -->
 
     <properties>
-        <cxf.version>3.3.5</cxf.version>
+        <cxf.version>3.4.0</cxf.version>
     </properties>
 
     <dependencyManagement>
