@@ -17,6 +17,7 @@ public class CasConfig {
   private long sessionTicketValidMs;
   private long ticketGrantingTicketValidMs;
   private int numberOfRetries;
+  private boolean refreshTicketsOnLoginRedirect;
 
   private CasConfig() {
   }
@@ -35,6 +36,7 @@ public class CasConfig {
     private Optional<Long> sessionTicketValidMs = Optional.empty();
     private Optional<Long> ticketGrantingTicketValidMs = Optional.empty();
     private Optional<Integer> numberOfRetries = Optional.empty();
+    private boolean refreshTicketsOnLoginRedirect;
 
     public CasConfigBuilder(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, String serviceUrlSuffix) {
       this.username = username;
@@ -70,6 +72,9 @@ public class CasConfig {
       this.jSessionName = jSessionName;
       return this;
     }
+    public CasConfigBuilder setRefreshTicketsOnLoginRedirect(boolean refreshTicketsOnLoginRedirect) {
+      this.refreshTicketsOnLoginRedirect = refreshTicketsOnLoginRedirect;
+    }
 
     public CasConfig build()
     {
@@ -87,19 +92,22 @@ public class CasConfig {
       casConfig.ticketGrantingTicketValidMs = this.ticketGrantingTicketValidMs.orElseGet(() -> TimeUnit.HOURS.toMillis(7));
       casConfig.sessionTicketValidMs = this.sessionTicketValidMs.orElseGet(() -> TimeUnit.MINUTES.toMillis(15));
       casConfig.numberOfRetries = this.numberOfRetries.orElse(1);
+      casConfig.refreshTicketsOnLoginRedirect = this.refreshTicketsOnLoginRedirect;
       return casConfig;
     }
   }
 
-  public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
+  public static CasConfig RingSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, boolean refreshTicketsOnLoginRedirect) {
     return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "/auth/cas")
             .setJsessionName("ring-session")
+            .setRefreshTicketsOnLoginRedirect(refreshTicketsOnLoginRedirect)
             .build();
   }
 
-  public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId) {
+  public static CasConfig SpringSessionCasConfig(String username, String password, String casUrl, String serviceUrl, String csrf, String callerId, boolean refreshTicketsOnLoginRedirect) {
     return new CasConfigBuilder(username, password, casUrl, serviceUrl, csrf, callerId, "/j_spring_cas_security_check")
             .setJsessionName("JSESSIONID")
+            .setRefreshTicketsOnLoginRedirect(refreshTicketsOnLoginRedirect)
             .build();
   }
 
@@ -152,4 +160,6 @@ public class CasConfig {
   public int getNumberOfRetries() {
     return numberOfRetries;
   }
+
+  public boolean getRefreshTicketsOnLoginRedirect() { return refreshTicketsOnLoginRedirect; }
 }
