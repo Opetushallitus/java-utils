@@ -9,11 +9,11 @@
     </parent>
 
     <artifactId>opintopolku-spring-security</artifactId>
-    <version>0.6.0-SNAPSHOT</version>
+    <version>0.7.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <properties>
-      <spring.security.version>5.4.5</spring.security.version>
-      <spring.version>5.3.5</spring.version>
+      <spring.security.version>5.8.3</spring.security.version>
+      <spring.version>5.3.27</spring.version>
     </properties>
 
     <dependencyManagement>
