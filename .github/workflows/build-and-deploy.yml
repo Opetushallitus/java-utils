@@ -1,0 +1,25 @@
+name: java-utils
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'master'
+jobs:
+  build:
+    uses: './.github/workflows/build.yml'
+    secrets: inherit
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy version
+        env:
+          ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+        run: |
+          git clone https://github.com/Opetushallitus/ci-tools.git
+          source ci-tools/common/setup-tools.sh
+          mvn deploy -DskipTests --settings ci-tools/common/maven-settings.xml
