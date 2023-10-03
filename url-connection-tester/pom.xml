@@ -16,7 +16,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.30</version>
+            <version>1.7.34</version>
         </dependency>
         <!-- CAS client version dependency>
             <groupId>org.jasig.cas.client</groupId>
