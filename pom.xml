@@ -30,7 +30,6 @@
         <module>spring-aware-health-check-servlet</module>
         <module>opintopolku-jetty</module>
         <module>suomifi-valtuudet-client</module>
-        <module>java-yml</module>
     </modules>
     <properties>
         <java.release.version>8</java.release.version>

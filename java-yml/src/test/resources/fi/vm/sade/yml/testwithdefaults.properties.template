@@ -1,3 +1,0 @@
-value={{key}}
-value_with.overridden.default={{ value_with_overridden_default | default('This must not show.') }}
-value_with.default.in.use={{ some_key_definitely_not_in_yml | default('Hope you can see this.') }}
