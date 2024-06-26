@@ -7,7 +7,7 @@
         <artifactId>java-utils</artifactId>
         <version>0.3.0-SNAPSHOT</version>
     </parent>
-    <artifactId>java-cas</artifactId>
+    <artifactId>java-cas-refactored</artifactId>
     <version>1.2.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
