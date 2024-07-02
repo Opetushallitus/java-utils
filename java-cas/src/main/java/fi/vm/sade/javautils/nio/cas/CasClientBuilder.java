@@ -2,7 +2,6 @@ package fi.vm.sade.javautils.nio.cas;
 
 import fi.vm.sade.javautils.nio.cas.impl.CasClientImpl;
 import fi.vm.sade.javautils.nio.cas.impl.CasSessionFetcher;
-import fi.vm.sade.javautils.nio.cas.impl.CompletableFutureStore;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
@@ -18,8 +17,8 @@ public class CasClientBuilder {
         new CasSessionFetcher(
                 config,
                 asyncHttpClient,
-                new CompletableFutureStore<>(config.getSessionTicketValidMs()),
-                new CompletableFutureStore<>(config.getTicketGrantingTicketValidMs()));
+                config.getSessionTicketValidMs(),
+                config.getTicketGrantingTicketValidMs());
         return new CasClientImpl(config, asyncHttpClient, casSessionFetcher);
     }
 
