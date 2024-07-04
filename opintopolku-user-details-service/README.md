@@ -6,27 +6,19 @@ Spring Securityn UserDetailsService-rajapinnan toteutus, joka hakee käyttäjän
 
 XML
 
-    <beans:bean id="userDetailsService" class="fi.vm.sade.javautils.kayttooikeusclient.OphUserDetailsServiceImpl">
-        <beans:constructor-arg index="0" value="${host.alb}" />
-        <beans:constructor-arg index="1" value="kutsuvan_palvelun_tunniste_esim_oppijanumerorekisteri" />
-    </beans:bean>
+    <beans:bean id="authenticationUserDetailsService" class="fi.vm.sade.javautils.kayttooikeusclient.OphUserDetailsServiceImpl" />
 
     <beans:bean id="casAuthenticationProvider" class="org.springframework.security.cas.authentication.CasAuthenticationProvider">
-        <beans:property name="userDetailsService" ref="userDetailsService"/>
+        <beans:property name="authenticationUserDetailsService" ref="authenticationUserDetailsService"/>
         ...
     </beans:bean>
 
 Java
 
     @Bean
-    public UserDetailsService userDetailsService(Environment environment) {
-        return new OphUserDetailsServiceImpl(environment.getRequiredProperty("host.alb"), "kutsuvan_palvelun_tunniste_esim_oppijanumerorekisteri");
-    }
-
-    @Bean
-    public CasAuthenticationProvider casAuthenticationProvider(UserDetailsService userDetailsService) {
+    public CasAuthenticationProvider casAuthenticationProvider() {
         CasAuthenticationProvider casAuthenticationProvider = new CasAuthenticationProvider();
-        casAuthenticationProvider.setUserDetailsService(userDetailsService);
+        casAuthenticationProvider.setAuthenticationUserDetailsService(new OphUserDetailsServiceImpl());
         ...
         return casAuthenticationProvider;
     }
