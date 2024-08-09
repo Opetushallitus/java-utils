@@ -11,7 +11,7 @@
   </parent>
 
   <properties>
-    <poi.version>4.1.2</poi.version>
+    <poi.version>5.3.0</poi.version>
   </properties>
 
   <artifactId>java-poi</artifactId>
