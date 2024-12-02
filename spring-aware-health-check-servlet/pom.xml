@@ -50,7 +50,7 @@
       <dependency>
         <groupId>org.springframework.security</groupId>
         <artifactId>spring-security-core</artifactId>
-        <version>5.4.5</version>
+        <version>5.7.12</version>
       </dependency>
       <dependency>
         <groupId>org.apache.httpcomponents</groupId>
