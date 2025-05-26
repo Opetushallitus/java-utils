@@ -2,6 +2,8 @@ package fi.vm.sade.javautils.nio.cas.impl;
 
 import fi.vm.sade.javautils.nio.cas.CasClient;
 import fi.vm.sade.javautils.nio.cas.CasConfig;
+import fi.vm.sade.javautils.nio.cas.exceptions.ServiceTicketException;
+import fi.vm.sade.javautils.nio.cas.exceptions.TicketGrantingTicketException;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.Request;
@@ -17,6 +19,7 @@ import java.io.StringReader;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public class CasClientImpl implements CasClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(CasClientImpl.class);
@@ -34,13 +37,24 @@ public class CasClientImpl implements CasClient {
         this.casSessionFetcher = casSessionFetcher;
     }
 
-    private CompletableFuture<Response> executeWithSession(Request request) {
+    private CompletableFuture<Response> executeWithSession(Request request, int retriesLeft) {
         return this.casSessionFetcher.fetchSessionToken()
+                .handle(Either<String>::new)
                 .thenCompose(session -> {
+                    final Throwable t = session.throwable;
+                    if (retriesLeft > 0
+                            && t instanceof ExecutionException
+                            && t.getCause() != null
+                            && (t.getCause() instanceof ServiceTicketException || t.getCause() instanceof TicketGrantingTicketException)) {
+                        LOGGER.warn("Clearing stores and retrying executeWithSession, retriesLeft {}", retriesLeft, session.throwable);
+                        this.casSessionFetcher.clearTgtStore();
+                        this.casSessionFetcher.clearSessionStore();
+                        return executeWithSession(request, retriesLeft - 1);
+                    }
                     this.asyncHttpClient.getConfig().getCookieStore().clear();
                     Request requestWithSession =
                             utils.withCallerIdAndCsrfHeader(request.toBuilder())
-                                    .addOrReplaceCookie(new DefaultCookie(config.getjSessionName(), session))
+                                    .addOrReplaceCookie(new DefaultCookie(config.getjSessionName(), session.value))
                                     .build();
                     return this.asyncHttpClient.executeRequest(requestWithSession).toCompletableFuture();
                 });
@@ -60,25 +74,25 @@ public class CasClientImpl implements CasClient {
         LOGGER.warn(String.format("Retrying request %s on exception!", request.getUrl()), exception);
         return executeWithRetries(request, numberOfRetries - 1, statusCodesToRetry);
     }
-    private static class Either {
-        public final Response response;
+    private static class Either<T> {
+        public final T value;
         public final Throwable throwable;
-        public Either(Response r, Throwable t) {
-            this.response = r;
+        public Either(T v, Throwable t) {
+            this.value = v;
             this.throwable = t;
         }
     }
 
     private CompletableFuture<Response> executeWithRetries(Request request, int numberOfRetries, Set<Integer> statusCodesToRetry) {
-        CompletableFuture<Response> execution = executeWithSession(request);
+        CompletableFuture<Response> execution = executeWithSession(request, config.getNumberOfRetries());
         if(numberOfRetries < 1) {
             return execution;
         } else {
-            return execution.handle(Either::new).thenCompose(entry -> {
+            return execution.handle(Either<Response>::new).thenCompose(entry -> {
                     if(entry.throwable != null) {
                         return retryConditionally(request, entry.throwable, numberOfRetries, statusCodesToRetry);
                     } else {
-                        return retryConditionally(request, entry.response, numberOfRetries, statusCodesToRetry);
+                        return retryConditionally(request, entry.value, numberOfRetries, statusCodesToRetry);
                     }
             });
         }

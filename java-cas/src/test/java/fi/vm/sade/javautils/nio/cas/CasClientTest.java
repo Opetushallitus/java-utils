@@ -11,10 +11,11 @@ import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class CasClientTest {
     private MockWebServer mockWebServer;
@@ -317,5 +318,46 @@ public class CasClientTest {
         assertEquals(true, actualRequest.getHeader("cookie").contains("JSESSIONID=1234567890"));
     }
 
+    @Test
+    public void shouldClearCachesAndFetchNewTGT() throws ExecutionException, InterruptedException {
+        mockWebServer.enqueue(new MockResponse()
+            .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+            .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+            .setBody("TGT not found")
+            .setResponseCode(404));
+        mockWebServer.enqueue(new MockResponse()
+            .addHeader("Location", mockWebServer.url("/") + "cas/tickets")
+            .setResponseCode(201));
+        mockWebServer.enqueue(new MockResponse()
+            .setBody(VALID_TICKET)
+            .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+            .addHeader("Set-Cookie: " + String.format(COOKIENAME + "=%s; Path=/test-service/", "123456789"))
+            .addHeader("Set-Cookie: " + String.format("TEST-COOKIE=%s; Path=/test-service/", "WHUTEVAMAN"))
+            .setResponseCode(200));
+        mockWebServer.enqueue(new MockResponse()
+            .addHeader("Content-Type", "application/x-www-form-urlencoded")
+            .setResponseCode(200));
+
+        Request request = new RequestBuilder()
+            .setUrl(this.mockWebServer.url("/test").toString())
+            .addHeader("Caller-Id", "Caller-Id")
+            .addHeader("CSRF", CSRF_VALUE)
+            .build();
+
+        this.casClient.execute(request).get();
+
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        mockWebServer.takeRequest();
+        RecordedRequest actualRequest = mockWebServer.takeRequest();
+        assertEquals("/test", actualRequest.getPath());
+        final String cookie = actualRequest.getHeader("cookie");
+        assertTrue(cookie != null && cookie.contains("JSESSIONID=123456789"));
+    }
 }
 
