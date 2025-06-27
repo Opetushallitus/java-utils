@@ -37,19 +37,19 @@ public class CasClientImpl implements CasClient {
         this.casSessionFetcher = casSessionFetcher;
     }
 
-    private CompletableFuture<Response> executeWithSession(Request request, int retriesLeft) {
+    private CompletableFuture<Response> executeWithSession(Request request, boolean retry) {
         return this.casSessionFetcher.fetchSessionToken()
                 .handle(Either<String>::new)
                 .thenCompose(session -> {
                     final Throwable t = session.throwable;
-                    if (retriesLeft > 0
+                    if (retry
                             && t instanceof ExecutionException
                             && t.getCause() != null
                             && (t.getCause() instanceof ServiceTicketException || t.getCause() instanceof TicketGrantingTicketException)) {
-                        LOGGER.warn("Clearing stores and retrying executeWithSession, retriesLeft {}", retriesLeft, session.throwable);
+                        LOGGER.warn("Clearing stores and retrying executeWithSession, retry {}", retry, session.throwable);
                         this.casSessionFetcher.clearTgtStore();
                         this.casSessionFetcher.clearSessionStore();
-                        return executeWithSession(request, retriesLeft - 1);
+                        return executeWithSession(request, false);
                     }
                     this.asyncHttpClient.getConfig().getCookieStore().clear();
                     Request requestWithSession =
@@ -84,7 +84,7 @@ public class CasClientImpl implements CasClient {
     }
 
     private CompletableFuture<Response> executeWithRetries(Request request, int numberOfRetries, Set<Integer> statusCodesToRetry) {
-        CompletableFuture<Response> execution = executeWithSession(request, config.getNumberOfRetries());
+        CompletableFuture<Response> execution = executeWithSession(request, true);
         if(numberOfRetries < 1) {
             return execution;
         } else {
