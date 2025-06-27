@@ -37,16 +37,16 @@ public class CasClientImpl implements CasClient {
         this.casSessionFetcher = casSessionFetcher;
     }
 
-    private CompletableFuture<Response> executeWithSession(Request request, boolean retry) {
+    private CompletableFuture<Response> executeWithSession(Request request, boolean retrySessionFetch) {
         return this.casSessionFetcher.fetchSessionToken()
                 .handle(Either<String>::new)
                 .thenCompose(session -> {
                     final Throwable t = session.throwable;
-                    if (retry
+                    if (retrySessionFetch
                             && t instanceof ExecutionException
                             && t.getCause() != null
                             && (t.getCause() instanceof ServiceTicketException || t.getCause() instanceof TicketGrantingTicketException)) {
-                        LOGGER.warn("Clearing stores and retrying executeWithSession, retry {}", retry, session.throwable);
+                        LOGGER.warn("Clearing stores and retrying executeWithSession, retrySessionFetch {}", retrySessionFetch, session.throwable);
                         this.casSessionFetcher.clearTgtStore();
                         this.casSessionFetcher.clearSessionStore();
                         return executeWithSession(request, false);
