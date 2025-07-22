@@ -9,7 +9,6 @@
     <modules>
         <module>java-properties</module>
         <module>oid-generator</module>
-        <module>java-cas</module>
         <module>httpclient</module>
         <module>opintopolku-cas-servlet-filter</module>
         <module>java-http</module>
