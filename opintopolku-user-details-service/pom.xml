@@ -10,10 +10,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>opintopolku-user-details-service</artifactId>
-    <version>0.5.3-SNAPSHOT</version>
+    <version>0.5.4-SNAPSHOT</version>
 
     <properties>
-        <spring.security.version>6.3.10</spring.security.version>
+        <spring.security.version>6.5.11</spring.security.version>
     </properties>
 
     <dependencies>
